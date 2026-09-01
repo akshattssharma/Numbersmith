@@ -47,9 +47,9 @@ export function FiveChildren() {
             <b className="mono" style={{ color: 'var(--ink)' }}>{turns}</b>
           </label>
           <span className="pill good">
-            every pair differs on ≥ {report.minPairDifference} of 9 dimensions
+            every pair differs on ≥ {report.minPairDifference} of 10 dimensions
           </span>
-          <span className="pill">mean {report.meanPairDifference.toFixed(1)} / 9</span>
+          <span className="pill">mean {report.meanPairDifference.toFixed(1)} / 10</span>
         </div>
       </div>
 
