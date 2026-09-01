@@ -21,45 +21,52 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # Node 22, not 20. Vite 7 declares engines ^20.19.0 || >=22.12.0, so
+      # "20" only works if setup-node happens to resolve to a late-enough 20.x —
+      # a dependency on luck that fails confusingly when it breaks.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
+
       - run: npm ci
+
       - run: npx tsc --noEmit
+
       # The divergence suite is the product thesis expressed as assertions.
       # If personalization stops happening, this is what says so.
       - run: npm test
 
-  build:
-    needs: test
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - run: npm ci
       # GitHub Pages serves a project site from /<repo>/, so the asset base has
       # to match or every script tag 404s. Derived from the repo name rather
-      # than hard-coded, so a fork or a rename still deploys correctly.
+      # than hard-coded, so a fork or a rename still deploys correctly, and it
+      # preserves capitalisation — Pages URLs are case-sensitive.
       - run: npx vite build
         env:
           VITE_BASE: /${{ github.event.repository.name }}/
+
+      # `enablement: true` turns Pages on via the API if it is not already.
+      # Without it, a push that lands before Pages has been switched on fails
+      # with "Get Pages site failed" — which reads like a broken build when it
+      # is really just a setting that has not been clicked yet.
       - uses: actions/configure-pages@v5
+        if: github.event_name != 'pull_request'
+        with:
+          enablement: true
+
       - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
         with:
           path: dist
 
   deploy:
     needs: build
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
