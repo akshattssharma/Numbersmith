@@ -213,6 +213,9 @@ deterministically, which is also why the demo is reproducible.
 Push to `main` and the included GitHub Actions workflow builds and publishes to GitHub
 Pages. Enable it once under **Settings → Pages → Source: GitHub Actions**.
 
+On Windows with no terminal at all, see [docs/WINDOWS-SETUP.md](docs/WINDOWS-SETUP.md) —
+GitHub builds the site, so Node never has to be installed locally.
+
 The build honours a `VITE_BASE` environment variable, so the same repo deploys to
 GitHub Pages (served from `/<repo>/`) and to Vercel or Netlify (served from `/`)
 without changes.
