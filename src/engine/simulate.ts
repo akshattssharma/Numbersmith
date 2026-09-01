@@ -45,6 +45,8 @@ export interface Journey {
     accuracy: number;
     challengeDoor: { offered: number; tookHarder: number };
     timePressure: boolean;
+    personalization: 'off' | 'light' | 'full';
+    personalizationLift: ReturnType<Session['personalizationLift']>;
     hintTiming: string;
     sessionTarget: number;
   };
@@ -54,7 +56,7 @@ export interface Journey {
 
 export function runJourney(persona: Persona, turns = 28): Journey {
   const rng = personaRng(persona);
-  const s = new Session(undefined, 991);
+  const s = new Session(undefined, 991, { ...persona.profile });
   s.model = { ...s.model, name: persona.name };
 
   // The opening shows a glimpse of each world and watches what the child
@@ -71,7 +73,8 @@ export function runJourney(persona: Persona, turns = 28): Journey {
     // An intervention or a catch item is a scaffolded item: the buggy move is
     // not available. Anything else, the child is on their own.
     const scaffolded = Boolean(turn.intervention) || turn.selection.reason === 'catch-the-mistake';
-    const r = respond(persona, turn.selection.problem, rng, consecutiveFails, scaffolded);
+    const personalized = !!turn.rendered && !turn.rendered.isControl && turn.rendered.contextIds.length > 0;
+    const r = respond(persona, turn.selection.problem, rng, consecutiveFails, scaffolded, personalized);
     const res = s.submit(turn, r.given, {
       latencyMs: r.latencyMs,
       hintsUsed: r.hintsUsed,
@@ -134,6 +137,8 @@ export function runJourney(persona: Persona, turns = 28): Journey {
       accuracy: steps.filter((x) => x.correct).length / steps.length,
       challengeDoor: m.challengeDoor,
       timePressure: m.policy.timePressure,
+      personalization: m.policy.personalization,
+      personalizationLift: s.personalizationLift(),
       hintTiming: m.policy.hintTiming,
       sessionTarget: m.policy.sessionTarget,
     },
@@ -175,10 +180,11 @@ export function divergenceReport(js: Journey[]) {
     // on notation, Nia is weak on language — and that difference is what
     // drives the parent insight and the intervention choice.
     affinityOrder: new Set(js.map((j) => affinityOrder(j))).size,
+    personalization: new Set(js.map((j) => j.summary.personalization)).size,
     sessionLength: new Set(js.map((j) => j.summary.sessionTarget)).size,
   };
 
-  // Pairwise: on how many of the ten dimensions does each pair differ?
+  // Pairwise: on how many of the eleven dimensions does each pair differ?
   const pairs: { a: string; b: string; differing: number }[] = [];
   for (let i = 0; i < js.length; i++) {
     for (let k = i + 1; k < js.length; k++) {
@@ -194,6 +200,7 @@ export function divergenceReport(js: Journey[]) {
       if (Math.abs(A.meanDifficulty - B.meanDifficulty) > 0.08) n++;
       if (A.sessionTarget !== B.sessionTarget) n++;
       if (affinityOrder(js[i]) !== affinityOrder(js[k])) n++;
+      if (A.personalization !== B.personalization) n++;
       pairs.push({ a: js[i].persona.name, b: js[k].persona.name, differing: n });
     }
   }

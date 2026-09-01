@@ -44,6 +44,7 @@ diagnosis itself, deliberately; see [Safety](#safety-is-an-architecture-not-a-fi
 | **Struggle controller** | PI controller with online bias correction, plus frustration and boredom overrides | [`struggle.ts`](src/engine/struggle.ts) |
 | **Selector** | Decides what happens next and explains itself in one sentence, every time | [`selector.ts`](src/engine/selector.ts) |
 | **Parent insights** | Plain-language findings and an off-screen activity. No accuracy percentage anywhere | [`parentInsights.ts`](src/engine/parentInsights.ts) |
+| **Personalization** | The child's friends and favourite things woven into problems — gated by the learner model, with a control holdout to check it works | [`cast.ts`](src/engine/cast.ts), [`storyTemplates.ts`](src/engine/storyTemplates.ts) |
 
 ### The north-star mechanic: the representation delta
 
@@ -57,6 +58,27 @@ completely different responses.
 It is measured from the first minutes: the opening six items look like ordinary play
 but deliberately interleave surfaces on the same concept. No quiz, no grade question,
 no settings screen.
+
+### Personalization, with the brakes fitted
+
+Problems are told in the child's own world: their friend Jack, their favourite
+footballs, the park. Friends appear as characters from a curated library of 60 —
+named by the child, never generated from a photo. First names only, parent-entered,
+stored on-device, and stripped from anything that could reach a model.
+
+Three constraints do most of the work here, and each one exists because the obvious
+version is wrong:
+
+- **The learner model decides the intensity, not a settings toggle.** A child whose
+  story-surface performance trails their symbolic performance is telling us the
+  *sentence* is the hard part. Giving them a longer, warmer sentence is a kindness
+  that costs them accuracy. For that child, personalization switches off.
+- **A name must never become the maths.** "Jack brings 3 more" leaves open whether he
+  handed them over. Every template states the direction of transfer explicitly, and
+  the child is always the single pile being counted.
+- **One story item in six stays deliberately generic.** Same sentence structure, "your
+  friend" instead of Jack, "blocks" instead of footballs — one variable isolated — so
+  the claim that personalization helps can actually be checked, per child.
 
 ### The core mechanic: a number is a physical thing
 
@@ -112,7 +134,28 @@ runs at coin-flip accuracy however low the difficulty goes. The knob controls ho
 item is, not how unfamiliar the idea is. The fix was to change *what* is served — step
 back and consolidate something nearly known.
 
-**6. The 80% target is not met, and the gap is structural.** Simulated children land at
+**6. Personalization has to be able to switch itself off.** Vivid detail competes for
+the same working memory the arithmetic needs, and it costs most for the child already
+struggling with language. Intensity is therefore derived from the story-surface signal
+and the frustration level. The first thresholds were also wrong in the opposite
+direction — they required a *positive* story signal before naming anyone, so nearly
+every child sat at the lowest setting and the feature never appeared. The right prior
+is: help most children, back off on evidence about this one.
+
+**7. A control arm has to differ in exactly one variable.** The first holdout rendered
+control items as bare notation, so it compared surface *and* personalization at once
+and could not have answered its own question. Controls now keep the sentence structure
+and swap only whose world it is about. Relatedly, personalization is kept off the
+calibration probe entirely — you do not personalize the instrument you are measuring
+with.
+
+**8. The per-child A/B is underpowered and says so.** One session yields about five
+control items against an effect smaller than the item-to-item noise. The lift figure
+reports `adequate: false` rather than a tempting number. The reads that will work are
+pooled across children (days) or per child across sessions (weeks) — both of which
+need the logging running from session one.
+
+**9. The 80% target is not met, and the gap is structural.** Simulated children land at
 43–63%. Roughly a third of every session is deliberately spent on diagnosis and
 exploration rather than on winnable items, and traits like carelessness produce failures
 no difficulty setting prevents. This is recorded as a test that catches the band
@@ -134,6 +177,13 @@ it".
 Likewise the parent view offers a fixed question list rather than a chat box, and no
 model decides what is true about a child.
 
+The personalization feature is built to the same standard. Friends are characters from
+a curated set, never likenesses generated from a photo — the highest-risk thing a
+children's product can do, and one that buys less than it appears to, since what makes
+it *their* Jack is the name and the role. Names are first-name-only, parent-entered,
+never leave the device, and are scrubbed as part of *constructing* the model payload
+rather than as a later step, so there is no path by which a caller can forget.
+
 Two further product commitments, both enforced in code: timed pressure is opt-in by
 behaviour and never switched on for a child showing frustration
 ([`struggle.ts`](src/engine/struggle.ts), asserted in the test suite); and the
@@ -151,7 +201,7 @@ companion evaluates the work, never the child.
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 33 tests — engine behaviour and the divergence thesis
+npm test           # 56 tests — engine behaviour, the divergence thesis, personalization safety
 npm run build      # production build to dist/
 ```
 
@@ -171,8 +221,8 @@ without changes.
 
 ```
 src/engine/     the intelligence layer — no React, no DOM, fully unit-testable
-src/screens/    Play · Five children · The brain · Parent
-src/components/ the bundle board manipulative
+src/screens/    Play · Five children · The brain · Parent · Their world (setup)
+src/components/ the bundle board manipulative, the character avatars
 docs/           product plan, architecture, roadmap
 ```
 

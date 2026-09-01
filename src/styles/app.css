@@ -164,3 +164,35 @@ table.matrix th { color: var(--muted); font-weight: 500; background: rgba(255,25
 details.why { margin-top: 12px; }
 details.why summary { cursor: pointer; font-size: 12px; color: var(--muted); }
 details.why div { margin-top: 8px; font-size: 12.5px; line-height: 1.6; color: var(--muted); }
+
+/* ------------------------------------------------------ personalization */
+button.pickable {
+  display: grid; place-items: center; gap: 5px;
+  min-width: 72px; padding: 9px 8px;
+  border: 1px solid var(--line); border-radius: 11px;
+  color: inherit; font: inherit; cursor: pointer;
+}
+button.pickable:hover { border-color: var(--muted); }
+button.pickable.tight { min-width: 0; padding: 5px; }
+button.pickable .tiny { color: var(--muted); }
+
+input.text-in, select.text-in {
+  font: inherit; font-size: 15px; padding: 8px 11px; border-radius: 9px;
+  background: rgba(0,0,0,0.28); border: 1px solid var(--line); color: inherit;
+  min-width: 150px;
+}
+
+.note-box {
+  border-left: 2px solid var(--warn); background: rgba(251,191,36,0.07);
+  padding: 12px 15px; border-radius: 0 9px 9px 0; margin-bottom: 18px;
+}
+.note-box b { font-size: 13.5px; display: block; margin-bottom: 5px; }
+.note-box p { margin: 0; font-size: 12.5px; line-height: 1.6; color: var(--muted); }
+
+.castline { display: flex; align-items: center; gap: 9px; margin-top: 14px; flex-wrap: wrap; }
+button.btn.tiny { font-size: 12px; padding: 5px 10px; }
+
+.liftbar { display: grid; gap: 7px; margin-top: 10px; }
+.liftbar .lrow { display: grid; grid-template-columns: 92px 1fr 46px; gap: 10px; align-items: center; font-size: 12.5px; }
+.liftbar .track { height: 9px; border-radius: 5px; background: rgba(255,255,255,0.08); overflow: hidden; }
+.liftbar .track i { display: block; height: 100%; }

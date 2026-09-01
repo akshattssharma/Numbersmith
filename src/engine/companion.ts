@@ -1,3 +1,4 @@
+import { scrubNames, type PersonalProfile } from './cast';
 import { MISCONCEPTIONS } from './misconceptions';
 import type { Diagnosis, LearnerModel, Policy, WorldId } from './types';
 import { WORLDS } from './worlds';
@@ -172,11 +173,25 @@ export interface RephraseRequest {
   forbidden: string[];
 }
 
-export function rephraseRequest(m: LearnerModel, line: Line, world: WorldId): RephraseRequest {
+/**
+ * Build the only payload in this app that could ever leave the device.
+ *
+ * `profile` is required rather than optional on purpose: the scrub is not
+ * something a caller can forget, because there is no way to construct this
+ * request without passing the thing being scrubbed against. Names of the
+ * child's friends — other people's children — never reach a third party,
+ * and that holds by construction rather than by discipline.
+ */
+export function rephraseRequest(
+  m: LearnerModel,
+  line: Line,
+  world: WorldId,
+  profile: PersonalProfile,
+): RephraseRequest {
   return {
     beat: line.beat,
     tone: m.policy.companionTone,
-    baseline: line.text,
+    baseline: scrubNames(line.text, profile),
     companion: companionName(world),
     maxWords: 16,
     forbidden: ['stupid', 'dumb', 'bad at', 'wrong again', 'you always', 'you never', 'failed'],

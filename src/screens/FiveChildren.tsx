@@ -75,6 +75,12 @@ export function FiveChildren() {
               <Row label="Companion tone" get={(j) => j.summary.tone} js={journeys} />
               <Row label="Hints" get={(j) => j.summary.hintTiming} js={journeys} />
               <Row label="Timer" get={(j) => (j.summary.timePressure ? 'on' : 'off')} js={journeys} />
+              <Row label="Personalization" get={(j) => j.summary.personalization} js={journeys} />
+              <Row
+                label="Their cast"
+                get={(j) => j.persona.profile.cast.map((c) => c.name).join(', ')}
+                js={journeys}
+              />
               <Row label="Mean difficulty" get={(j) => j.summary.meanDifficulty.toFixed(2)} js={journeys} />
               <Row label="Depth reached" get={(j) => CONCEPTS[j.summary.conceptsTouched[j.summary.conceptsTouched.length - 1]].label} js={journeys} />
               <Row label="Concepts touched" get={(j) => String(j.summary.conceptsTouched.length)} js={journeys} />
@@ -96,6 +102,62 @@ export function FiveChildren() {
             ribbons above show the surface served on each item, in order
           </span>
         </div>
+      </div>
+
+      <div className="card">
+        <h2>Does personalization actually help?</h2>
+        <p className="small" style={{ marginTop: 0, maxWidth: '76ch', lineHeight: 1.65 }}>
+          Naming a child's friend and their favourite thing is an obvious win, which is exactly
+          why it is worth checking. Roughly one story item in six stays deliberately generic, so
+          every child generates their own comparison: engagement with their world woven in
+          against engagement without it. The engine reads engagement from behaviour —
+          staying with it, not reaching for a hint, answering promptly — and never from
+          correctness, because a context that made a child look cleverer would just be a
+          biased sample.
+        </p>
+
+        <div className="scroller">
+          <table className="matrix">
+            <thead>
+              <tr>
+                <th>Child</th><th>Intensity</th><th>Personalized</th><th>Control</th>
+                <th>Difference</th><th>Enough data?</th>
+              </tr>
+            </thead>
+            <tbody>
+              {journeys.map((j) => {
+                const l = j.summary.personalizationLift;
+                return (
+                  <tr key={j.persona.id}>
+                    <td>{j.persona.name}</td>
+                    <td className="mono">{j.summary.personalization}</td>
+                    <td className="mono">{l ? l.personalized.toFixed(2) : '—'}</td>
+                    <td className="mono">{l ? l.control.toFixed(2) : '—'}</td>
+                    <td className="mono">
+                      {l ? `${l.personalized - l.control >= 0 ? '+' : ''}${(l.personalized - l.control).toFixed(2)}` : '—'}
+                    </td>
+                    <td>
+                      <span className="pill warn tiny">
+                        {l ? `no — ${l.perArm.control} controls, need ~30` : 'no'}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <p className="small muted" style={{ marginBottom: 0, lineHeight: 1.65 }}>
+          Every row says the same thing, and it is the honest finding: <b style={{ color: 'var(--ink)' }}>a
+          single session cannot answer this question.</b> One sitting yields about five control
+          items, and the effect being looked for is smaller than the item-to-item noise — so
+          these differences are curiosities, not results, and reporting them as results is
+          precisely what the holdout exists to prevent. The two reads that will work are pooled
+          across many children, available within days of real use, and per child across many
+          sessions, available in weeks. Both need the logging to have been running from the
+          first session, which is why it is here now.
+        </p>
       </div>
 
       {open && <Detail j={journeys.find((x) => x.persona.id === open)!} />}

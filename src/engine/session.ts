@@ -1,3 +1,4 @@
+import { engagementScore, recordEngagement, defaultProfile, type PersonalProfile } from './cast';
 import { companionLine, type Line } from './companion';
 import { chooseIntervention, logIntervention, type Intervention } from './interventions';
 import { createLearner, diagnose, recordAttempt, recordChallengeDoor, recordWorldEngagement } from './learnerModel';
@@ -5,6 +6,7 @@ import { generate, makeRng } from './problemGen';
 import { selectNext, type Selection } from './selector';
 import { derivePolicy, initStruggle, nextDifficulty, observeOutcome, predictSuccess, type StruggleState } from './struggle';
 import type { Attempt, ConceptId, Diagnosis, LearnerModel, MisconceptionId, Problem, Representation, WorldId } from './types';
+import { intensityForSurface, renderProblem, type RenderedProblem } from './storyTemplates';
 import { WORLD_IDS } from './worlds';
 
 /**
@@ -22,6 +24,8 @@ export interface Turn {
   index: number;
   /** what the controller expected of this item, so the outcome can score it */
   predicted?: number;
+  /** the problem as the child actually reads it, with their world woven in */
+  rendered?: RenderedProblem;
   selection: Selection;
   line: Line;
   intervention?: Intervention;
@@ -37,9 +41,23 @@ export interface TurnResult {
 
 export class Session {
   model: LearnerModel;
+  profile: PersonalProfile;
   struggle: StruggleState = initStruggle();
   rng: () => number;
+  /**
+   * A second, independent random stream, used only for presentation.
+   *
+   * Sharing one stream between "which problem is taught next" and "how is it
+   * dressed" quietly couples them: adding a personalization feature shifted the
+   * draws and changed the actual teaching sequence, which broke two pedagogical
+   * tests that had nothing to do with the feature. Presentation must never be
+   * able to alter what a child is taught, so it gets its own entropy.
+   */
+  presentationRng: () => number;
   index = 0;
+  /** running mean engagement, the baseline every context is scored against */
+  private engagementMean = 0.7;
+  private engagementN = 0;
   private pendingBug: MisconceptionId | null = null;
   /** engine-facing trace — powers the Brain view and the divergence demo */
   trace: {
@@ -47,10 +65,35 @@ export class Session {
     reason: string; rationale: string; correct: boolean; errorClass: string;
     override: string; world: WorldId; tone: string;
   }[] = [];
+  /** personalized-vs-control engagement log — proves or disproves the feature */
+  contextTrace: { index: number; isControl: boolean; score: number; ids: string[] }[] = [];
 
-  constructor(model?: LearnerModel, seed = 1234) {
+  constructor(model?: LearnerModel, seed = 1234, profile?: PersonalProfile) {
     this.model = model ?? createLearner('local', 'Player');
+    this.profile = profile ?? defaultProfile();
     this.rng = makeRng(seed);
+    this.presentationRng = makeRng(seed ^ 0x5f3a);
+  }
+
+  /**
+   * Render a problem in the child's own world, at the intensity the learner
+   * model allows. Kept in one place so no screen can accidentally decorate an
+   * item the model wanted plain.
+   */
+  private render(problem: Problem): RenderedProblem {
+    // Calibration items are never personalized beyond a light touch.
+    //
+    // Item 4 of the opening is the language probe: the same concept on the
+    // story surface, there to measure whether unpacking a sentence is what this
+    // child finds hard. Dressing it in a friend's name and a favourite fruit
+    // makes that sentence longer and more interesting at exactly the moment we
+    // are measuring how well they cope with sentences — so the probe would be
+    // measuring the decoration. You do not personalize the instrument.
+    const cap = this.index < this.calibrationPlan().length
+      ? 'light' as const
+      : this.model.policy.personalization;
+    const intensity = intensityForSurface(cap, problem.representation, problem.kind);
+    return renderProblem(problem, this.profile, intensity, this.index, this.presentationRng);
   }
 
   /**
@@ -86,6 +129,7 @@ export class Session {
     });
     return {
       index,
+      rendered: this.render(problem),
       selection: {
         problem,
         reason: 'frontier',
@@ -151,6 +195,7 @@ export class Session {
     return {
       index: this.index,
       predicted: predictSuccess(this.model, selection.problem.concept, selection.problem.difficulty),
+      rendered: this.render(selection.problem),
       selection,
       line,
       intervention,
@@ -226,6 +271,24 @@ export class Session {
       tone: this.model.policy.companionTone,
     });
 
+    // Score the *context* this item was dressed in, separately from whether the
+    // child got it right. Contexts are reweighted by engagement only — a
+    // favourite that makes a child keener is the point; a favourite that made
+    // them look cleverer would just be a biased sample.
+    const ids = turn.rendered?.contextIds ?? [];
+    const score = engagementScore(attempt, this.medianLatency());
+    this.engagementN += 1;
+    this.engagementMean += (score - this.engagementMean) / Math.min(this.engagementN, 30);
+    if (ids.length) {
+      this.profile = recordEngagement(this.profile, ids, score, this.engagementMean, this.index);
+    }
+    this.contextTrace.push({
+      index: this.index,
+      isControl: turn.rendered?.isControl ?? true,
+      score,
+      ids,
+    });
+
     this.index += 1;
     return { attempt, diagnosis, model: this.model, line };
   }
@@ -240,6 +303,43 @@ export class Session {
   /** Delight signal from play behaviour, used to settle which world fits. */
   observeWorldEngagement(world: WorldId, delight: number) {
     this.model = recordWorldEngagement(this.model, world, delight);
+  }
+
+  /**
+   * Personalized vs control engagement, for this child specifically.
+   *
+   * `adequate` is the important field and it is almost always false. A single
+   * session yields perhaps five control items, and the effect being looked for
+   * is smaller than the item-to-item noise — so a within-session number here
+   * is not evidence of anything, however much it looks like a result. Reporting
+   * it as though it were is the exact failure this holdout exists to prevent.
+   *
+   * The honest reads are: pooled across many children, available within days;
+   * or per child across many sessions, available in weeks. Both need the data
+   * to be logged from the start, which is why the holdout runs from day one.
+   */
+  personalizationLift(): {
+    personalized: number; control: number; n: number;
+    perArm: { personalized: number; control: number }; adequate: boolean;
+  } | null {
+    const pers = this.contextTrace.filter((c) => !c.isControl && c.ids.length);
+    const ctrl = this.contextTrace.filter((c) => c.isControl);
+    if (pers.length < 4 || ctrl.length < 2) return null;
+    const mean = (xs: { score: number }[]) => xs.reduce((s2, x) => s2 + x.score, 0) / xs.length;
+    return {
+      personalized: mean(pers),
+      control: mean(ctrl),
+      n: pers.length + ctrl.length,
+      perArm: { personalized: pers.length, control: ctrl.length },
+      // 30 per arm is the rough floor for an effect this size against this
+      // much noise. Below it, the number is a curiosity, not a finding.
+      adequate: pers.length >= 30 && ctrl.length >= 30,
+    };
+  }
+
+  private medianLatency(): number {
+    const xs = this.model.history.map((h) => h.latencyMs).sort((a, b) => a - b);
+    return xs.length ? xs[Math.floor(xs.length / 2)] : 6000;
   }
 
   currentConcept(): any {

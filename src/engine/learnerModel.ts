@@ -70,6 +70,7 @@ export function createLearner(id: string, name: string): LearnerModel {
       timePressure: false,
       companionTone: 'coach',
       rewardStyle: 'collection',
+      personalization: 'light',
       reviewIntervalDays: 2,
       sessionTarget: 10,
     },

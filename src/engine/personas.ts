@@ -1,5 +1,6 @@
 import { CONCEPTS } from './conceptGraph';
 import { MISCONCEPTIONS } from './misconceptions';
+import type { PersonalProfile } from './cast';
 import { makeRng } from './problemGen';
 import type { ConceptId, MisconceptionId, Problem, Representation, WorldId } from './types';
 
@@ -40,11 +41,21 @@ export interface Persona {
   abandonAfterFails: number;
   doorBravery: number;                                // p(take the harder door)
   worldDelight: Record<WorldId, number>;
+  /** the child's own world — cast and favourites, as a parent would have set up */
+  profile: PersonalProfile;
+  /**
+   * How much a personalized context lifts (or costs) this child's engagement.
+   * Positive for most; negative for the child for whom a longer sentence is the
+   * obstacle, which is the case the feature has to be able to detect.
+   */
+  contextLift: number;
 }
 
 export const PERSONAS: Persona[] = [
   {
     id: 'riley',
+    profile: { cast: [{ id: 'p_theo', name: 'Theo', relation: 'friend', characterId: 'c03' }, { id: 'p_ines', name: 'Ines', relation: 'friend', characterId: 'c17' }], favourites: ['football', 'cookie', 'rocket', 'dinosaur', 'park'], engagement: {}, lastUsed: {} },
+    contextLift: 0.1,
     name: 'Riley',
     blurb: 'Fast. Often right. Occasionally right about the wrong thing.',
     teacherNote:
@@ -64,6 +75,8 @@ export const PERSONAS: Persona[] = [
   },
   {
     id: 'maya',
+    profile: { cast: [{ id: 'p_ravi', name: 'Ravi', relation: 'friend', characterId: 'c22' }, { id: 'p_nan', name: 'Nan', relation: 'family', characterId: 'c31' }], favourites: ['strawberry', 'cat', 'brick', 'icecream', 'treehouse'], engagement: {}, lastUsed: {} },
+    contextLift: 0.14,
     name: 'Maya',
     blurb: 'Builds the answer perfectly. Freezes when it is written down.',
     teacherNote:
@@ -83,6 +96,8 @@ export const PERSONAS: Persona[] = [
   },
   {
     id: 'sam',
+    profile: { cast: [{ id: 'p_milo', name: 'Milo', relation: 'friend', characterId: 'c08' }, { id: 'p_dad', name: 'Dad', relation: 'family', characterId: 'c44' }], favourites: ['banana', 'dog', 'marble', 'pizza', 'beach'], engagement: {}, lastUsed: {} },
+    contextLift: 0.09,
     name: 'Sam',
     blurb: 'Careful, quiet, and confidently applying a rule that does not work.',
     teacherNote:
@@ -105,6 +120,8 @@ export const PERSONAS: Persona[] = [
   },
   {
     id: 'alex',
+    profile: { cast: [{ id: 'p_zoe', name: 'Zoe', relation: 'friend', characterId: 'c12' }, { id: 'p_kit', name: 'Kit', relation: 'friend', characterId: 'c29' }], favourites: ['chesspiece', 'penguin', 'card', 'mango', 'space'], engagement: {}, lastUsed: {} },
+    contextLift: 0.05,
     name: 'Alex',
     blurb: 'Has already finished the curriculum and is quietly bored.',
     teacherNote:
@@ -124,6 +141,8 @@ export const PERSONAS: Persona[] = [
   },
   {
     id: 'nia',
+    profile: { cast: [{ id: 'p_amara', name: 'Amara', relation: 'friend', characterId: 'c05' }, { id: 'p_bibi', name: 'Bibi', relation: 'family', characterId: 'c38' }], favourites: ['mango', 'frog', 'kite', 'donut', 'library'], engagement: {}, lastUsed: {} },
+    contextLift: -0.12,
     name: 'Nia',
     blurb: 'The arithmetic is not the problem. The sentence is.',
     teacherNote:
@@ -173,6 +192,14 @@ export function respond(
    * problem and then drilled him on it.
    */
   scaffolded = false,
+  /**
+   * True when this item was dressed in the child's own world — a named friend,
+   * a favourite thing. Modelled as an effect on *engagement*, never on ability:
+   * recognising your friend's name does not make you better at subtraction, it
+   * makes you more willing to stay with the problem. For Nia the effect is
+   * negative, because for her the extra clause is the obstacle.
+   */
+  personalized = false,
 ): SimResponse {
   const conceptDifficulty = 1 - CONCEPTS[p.concept].bkt.init;
   const ability = persona.ability + (persona.conceptBias[p.concept] ?? 0);
@@ -181,15 +208,20 @@ export function respond(
   if (scaffolded) pCorrect = pCorrect + (1 - pCorrect) * 0.45;
   pCorrect = Math.max(0.02, Math.min(0.98, pCorrect));
 
+  // Personalization moves engagement — staying with it, not needing help,
+  // answering promptly — and leaves ability alone.
+  const lift = personalized ? persona.contextLift : 0;
+
   const magnitude = Math.max(p.a, p.b, 1);
   const latency =
     persona.baseLatencyMs +
-    persona.latencyPerUnitMs * magnitude * (p.representation === 'story' ? 1.4 : 1) +
+    persona.latencyPerUnitMs * magnitude * (p.representation === 'story' ? 1.4 : 1) *
+      (1 - lift * 0.8) +
     rng() * 800;
 
-  const hintsUsed = rng() < persona.hintRate ? 1 : 0;
+  const hintsUsed = rng() < Math.max(0, persona.hintRate - lift) ? 1 : 0;
   const churn = Math.round(persona.churnRate * (p.representation === 'manipulative' ? 3 : 1) * rng() * 2);
-  const abandoned = consecutiveFails >= persona.abandonAfterFails;
+  const abandoned = consecutiveFails >= persona.abandonAfterFails + (lift > 0.08 ? 1 : 0);
 
   // 1. A wrong rule they actually hold fires before anything else, because a
   //    bug is not a random failure — it is a consistent, confident method.

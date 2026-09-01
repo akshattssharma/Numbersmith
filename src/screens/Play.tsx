@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
+import { Avatar } from '../components/Avatar';
 import { BundleBoard } from '../components/BundleBoard';
 import { companionLine, companionName } from '../engine/companion';
 import { MISCONCEPTIONS } from '../engine/misconceptions';
@@ -22,7 +23,9 @@ export function Play({ session, onTick }: { session: Session; onTick: () => void
 
   const p = turn.selection.problem;
   const world = WORLDS[session.model.policy.world];
-  const prompt = world.frame[p.kind](p);
+  // The engine already decided how much of the child's world this item can
+  // carry. The screen renders that decision; it never makes it.
+  const prompt = turn.rendered?.text ?? world.frame[p.kind](p);
   const [doorOpen, setDoorOpen] = useState(false);
 
   const reset = () => {
@@ -58,11 +61,16 @@ export function Play({ session, onTick }: { session: Session; onTick: () => void
             {world.name} · item {turn.index + 1}
           </div>
 
-          <p className="prompt">
-            {p.kind === 'catch' && p.plantedAnswer !== undefined
-              ? `${prompt} ${companionName(world.id)} says the answer is ${p.plantedAnswer}.`
-              : prompt}
-          </p>
+          <div style={{ display: 'flex', gap: 13, alignItems: 'flex-start' }}>
+            {turn.rendered?.person && (
+              <Avatar characterId={turn.rendered.person.characterId} size={46} name={turn.rendered.person.name} ring />
+            )}
+            <p className="prompt" style={{ marginTop: turn.rendered?.person ? 2 : 0 }}>
+              {p.kind === 'catch' && p.plantedAnswer !== undefined
+                ? `${prompt} ${companionName(world.id)} says the answer is ${p.plantedAnswer}.`
+                : prompt}
+            </p>
+          </div>
 
           {p.representation === 'manipulative' ? (
             <BundleBoard
@@ -149,8 +157,17 @@ export function Play({ session, onTick }: { session: Session; onTick: () => void
           <summary>Why this item? (engine view — never shown to a child)</summary>
           <div>
             <b className="mono">{turn.selection.reason}</b> · concept <b className="mono">{p.concept}</b> ·
-            surface <b className="mono">{p.representation}</b> · difficulty <b className="mono">{p.difficulty.toFixed(2)}</b>
+            surface <b className="mono">{p.representation}</b> · difficulty <b className="mono">{p.difficulty.toFixed(2)}</b> ·
+            personalization <b className="mono">{session.model.policy.personalization}</b>
+            {turn.rendered?.isControl && <> · <b className="mono">control item</b></>}
             <p style={{ marginTop: 8 }}>{turn.selection.rationale}</p>
+            {turn.rendered?.isControl && (
+              <p style={{ marginTop: 8 }}>
+                Held deliberately generic. Roughly one story item in six skips personalization
+                so this child's engagement with and without it can be compared — otherwise
+                "personalization helps" is an assumption the product can never check.
+              </p>
+            )}
             {turn.intervention && (
               <p style={{ marginTop: 8 }}>
                 Intervention <b className="mono">{turn.intervention.id}</b> chosen because it runs on the{' '}
@@ -207,6 +224,7 @@ function LiveModel({ session }: { session: Session }) {
         <div>hints · <b style={{ color: 'var(--ink)' }}>{m.policy.hintTiming}</b></div>
         <div>timer · <b style={{ color: 'var(--ink)' }}>{m.policy.timePressure ? 'on' : 'off'}</b></div>
         <div>difficulty · <b style={{ color: 'var(--ink)' }}>{m.policy.difficulty.toFixed(2)}</b></div>
+        <div>personalization · <b style={{ color: 'var(--ink)' }}>{m.policy.personalization}</b></div>
       </div>
 
       <h2>Wrong rules</h2>

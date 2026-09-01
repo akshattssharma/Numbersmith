@@ -149,6 +149,16 @@ export interface Policy {
   timePressure: boolean;
   companionTone: 'coach' | 'peer' | 'cheerleader' | 'challenger';
   rewardStyle: 'collection' | 'mastery' | 'narrative' | 'speed';
+  /**
+   * How much of the child's own world gets woven into the problem text.
+   *
+   * Derived, never chosen. Naming a friend and a favourite fruit makes a
+   * problem land harder for most children — and makes it *worse* for the child
+   * whose difficulty is the sentence rather than the sum, because every extra
+   * clause is more to hold. So this is set from the learner model: the language
+   * signal and the frustration level decide it, not a settings toggle.
+   */
+  personalization: 'off' | 'light' | 'full';
   reviewIntervalDays: number;
   sessionTarget: number;
 }

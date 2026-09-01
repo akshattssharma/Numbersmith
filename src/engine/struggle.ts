@@ -207,6 +207,28 @@ export function derivePolicy(m: LearnerModel, difficulty: number): Policy {
     timePressure: t.confidence > 0.72 && t.impulsivity < 0.35 && t.frustration < 0.25,
     companionTone: tone,
     rewardStyle,
+    // Personalization intensity, derived from what the model knows about how
+    // this child copes with language.
+    //
+    // The obvious implementation is "on for everyone, because kids like seeing
+    // their friends' names". That is wrong for a specific and predictable
+    // child: the one whose story-surface performance trails their symbolic
+    // performance is telling us that unpacking a sentence is the hard part, and
+    // the response to that is a shorter sentence, not a warmer one. Dressing
+    // their problems in more narrative is a kindness that costs them accuracy.
+    //
+    // Frustration pulls it down for everyone, on the same logic — a child near
+    // the end of their patience does not want more to read.
+    // Thresholds set so the *neutral* child gets the full treatment. The first
+    // version required a positive story signal before naming anyone, which
+    // meant almost every child sat at 'light' forever and the feature never
+    // actually appeared — an over-cautious prior that silently disabled the
+    // thing it was guarding. The right prior is: help most children, and back
+    // off only on evidence that this particular child is worse off for it.
+    personalization:
+      t.frustration > 0.55 || t.repAffinity.story < -0.12 ? 'off'
+        : t.repAffinity.story < -0.04 || t.frustration > 0.35 ? 'light'
+          : 'full',
     reviewIntervalDays: t.strategy === 'retrieval' ? 4 : 2,
     sessionTarget: Math.round(t.staminaEstimate),
   };

@@ -1,22 +1,25 @@
 import { useRef, useState } from 'react';
+import { loadProfile, type PersonalProfile } from './engine/cast';
 import { Session } from './engine/session';
 import { BrainView } from './screens/BrainView';
 import { FiveChildren } from './screens/FiveChildren';
 import { ParentView } from './screens/ParentView';
 import { Play } from './screens/Play';
+import { Setup } from './screens/Setup';
 import './styles/app.css';
 
-type Tab = 'play' | 'children' | 'brain' | 'parent';
+type Tab = 'play' | 'children' | 'brain' | 'parent' | 'setup';
 
 const TABS: { id: Tab; label: string; note: string }[] = [
   { id: 'play', label: 'Play', note: 'the child-facing loop' },
   { id: 'children', label: 'Five children', note: 'the thesis, tested' },
   { id: 'brain', label: 'The brain', note: 'engine, made inspectable' },
   { id: 'parent', label: 'Parent', note: 'insight, not analytics' },
+  { id: 'setup', label: 'Their world', note: 'cast and favourites' },
 ];
 
 export default function App() {
-  const session = useRef(new Session(undefined, Date.now() & 0xffff)).current;
+  const session = useRef(new Session(undefined, Date.now() & 0xffff, loadProfile())).current;
   const [tab, setTab] = useState<Tab>('children');
   const [, force] = useState(0);
 
@@ -46,6 +49,12 @@ export default function App() {
       {tab === 'children' && <FiveChildren />}
       {tab === 'brain' && <BrainView session={session} />}
       {tab === 'parent' && <ParentView session={session} />}
+      {tab === 'setup' && (
+        <Setup
+          profile={session.profile}
+          onChange={(p: PersonalProfile) => { session.profile = p; force((n) => n + 1); }}
+        />
+      )}
     </div>
   );
 }
