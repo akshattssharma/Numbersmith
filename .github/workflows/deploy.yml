@@ -2,9 +2,13 @@ name: test and deploy
 
 on:
   push:
-    branches: [main]
+    # Both names accepted on purpose. The repo's branch is `main`, but a local
+    # `git init` on older Git creates `master`, and a workflow that silently
+    # never fires is the worst failure mode here: Pages just stays blank with
+    # no error anywhere obvious.
+    branches: [main, master]
   pull_request:
-    branches: [main]
+    branches: [main, master]
   workflow_dispatch:
 
 permissions:
@@ -33,7 +37,7 @@ jobs:
 
   build:
     needs: test
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -55,7 +59,7 @@ jobs:
 
   deploy:
     needs: build
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
