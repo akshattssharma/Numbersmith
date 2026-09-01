@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Avatar } from '../components/Avatar';
 import { availableCharacters, CHARACTERS } from '../engine/avatars';
 import {
@@ -28,18 +28,35 @@ export function Setup({
   onChange: (p: PersonalProfile) => void;
 }) {
   const [tab, setTab] = useState<'child' | 'parent'>('child');
+  const [justSaved, setJustSaved] = useState(false);
 
-  const update = (p: PersonalProfile) => { saveProfile(p); onChange(p); };
+  useEffect(() => {
+    if (!justSaved) return;
+    const t = setTimeout(() => setJustSaved(false), 1600);
+    return () => clearTimeout(t);
+  }, [justSaved]);
+
+  const update = (p: PersonalProfile) => {
+    saveProfile(p);
+    onChange(p);
+    setJustSaved(true);
+  };
 
   return (
     <div style={{ display: 'grid', gap: 18 }}>
       <div className="card">
-        <h2>Making it theirs</h2>
-        <p className="small" style={{ marginTop: 0, maxWidth: '74ch', lineHeight: 1.65 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+          <h2 style={{ margin: 0 }}>Making it theirs</h2>
+          <span className={`pill good savepill ${justSaved ? 'show' : ''}`}>
+            Saved to this device ✓
+          </span>
+        </div>
+        <p className="small" style={{ marginTop: 12, maxWidth: '74ch', lineHeight: 1.65 }}>
           A problem about <em>your</em> friend and <em>your</em> favourite thing lands harder than
           one about anonymous apples. Two halves: the grown-up adds the names, the child taps
           what they like. Everything picked here is a starting guess — the engine revises it
           from how the child actually plays, and quietly measures whether any of it is helping.
+          Every tap and every name saves instantly — there is nothing else to click.
         </p>
         <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
           <button className={`btn ${tab === 'child' ? 'primary' : 'ghost'}`} onClick={() => setTab('child')}>

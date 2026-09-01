@@ -68,11 +68,31 @@ export class Session {
   /** personalized-vs-control engagement log — proves or disproves the feature */
   contextTrace: { index: number; isControl: boolean; score: number; ids: string[] }[] = [];
 
-  constructor(model?: LearnerModel, seed = 1234, profile?: PersonalProfile) {
+  constructor(
+    model?: LearnerModel,
+    seed = 1234,
+    profile?: PersonalProfile,
+    struggle?: StruggleState,
+    index = 0,
+  ) {
     this.model = model ?? createLearner('local', 'Player');
     this.profile = profile ?? defaultProfile();
     this.rng = makeRng(seed);
     this.presentationRng = makeRng(seed ^ 0x5f3a);
+    this.struggle = struggle ?? initStruggle();
+    this.index = index;
+  }
+
+  /**
+   * Everything about this child that needs to survive a reload: their model,
+   * the struggle controller's running state, their cast/favourites, and where
+   * they are in the item sequence. The random streams are deliberately not
+   * part of this — they exist to vary what an item looks like, not to encode
+   * anything about the child, so re-seeding them fresh each load is a feature
+   * (today's session does not open on yesterday's exact numbers).
+   */
+  exportSave(): { model: LearnerModel; struggle: StruggleState; profile: PersonalProfile; index: number } {
+    return { model: this.model, struggle: this.struggle, profile: this.profile, index: this.index };
   }
 
   /**

@@ -45,6 +45,26 @@ diagnosis itself, deliberately; see [Safety](#safety-is-an-architecture-not-a-fi
 | **Selector** | Decides what happens next and explains itself in one sentence, every time | [`selector.ts`](src/engine/selector.ts) |
 | **Parent insights** | Plain-language findings and an off-screen activity. No accuracy percentage anywhere | [`parentInsights.ts`](src/engine/parentInsights.ts) |
 | **Personalization** | The child's friends and favourite things woven into problems — gated by the learner model, with a control holdout to check it works | [`cast.ts`](src/engine/cast.ts), [`storyTemplates.ts`](src/engine/storyTemplates.ts) |
+| **Household** | Kid mode vs. parent mode, a local PIN gate, and more than one child on the same device — each with their own progress, cast and favourites | [`household.ts`](src/engine/household.ts) |
+
+### Two screens, not one with a debug panel bolted on
+
+A child's screen shows the game and how they did — nothing else. A parent's shows the
+model that decided what to serve, why the last item was chosen, every child's progress,
+and the tools to add a child or change the cast. These used to be one screen with an
+inspector panel next to the play area; see [finding 10](#findings-from-building-it) for
+why that was wrong and what replaced it.
+
+- **Kid mode** — the whole surface is the game: the world, the companion, a star count
+  and a streak. A small "Grown-ups →" link is the only way out, and it leads to a PIN
+  pad, not straight into settings.
+- **Parent mode** — who's playing (add a child, switch, remove), their cast and
+  favourites, the parent insights, and the engine made inspectable. Getting back to the
+  game is one tap, no PIN required in that direction.
+- **The PIN** is a local 4-digit code, set on first run, checked entirely on this
+  device — there is no server to check it against, so it is a speed bump for a curious
+  seven-year-old, not authentication for a bank. A forgotten PIN resets via a quick
+  adult-arithmetic check rather than an email link that has nowhere to go.
 
 ### The north-star mechanic: the representation delta
 
@@ -162,6 +182,15 @@ no difficulty setting prevents. This is recorded as a test that catches the band
 *shifting* rather than one that claims the target is hit. Closing it is the first thing
 the next iteration should attack.
 
+**10. Inspectability for the builder is not the same feature as inspectability for the
+child.** The first version put the learner model — confidence, frustration, the current
+policy, a "why this item" panel — directly next to the play area, on the theory that
+transparency is always good. It isn't, for this audience: a seven-year-old does not
+benefit from a debug console, and it dilutes a screen that should be entirely about the
+game. The fix wasn't to remove the model view, it was to move it — it now lives in The
+Brain, behind the same parent gate as the cast editor and the child roster, and the
+child's screen shows only the game, a star count and a streak.
+
 ---
 
 ## Safety is an architecture, not a filter
@@ -201,7 +230,7 @@ companion evaluates the work, never the child.
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 56 tests — engine behaviour, the divergence thesis, personalization safety
+npm test           # 69 tests — engine behaviour, the divergence thesis, personalization safety
 npm run build      # production build to dist/
 ```
 

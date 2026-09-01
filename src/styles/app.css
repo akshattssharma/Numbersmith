@@ -196,3 +196,67 @@ button.btn.tiny { font-size: 12px; padding: 5px 10px; }
 .liftbar .lrow { display: grid; grid-template-columns: 92px 1fr 46px; gap: 10px; align-items: center; font-size: 12.5px; }
 .liftbar .track { height: 9px; border-radius: 5px; background: rgba(255,255,255,0.08); overflow: hidden; }
 .liftbar .track i { display: block; height: 100%; }
+
+/* ----------------------------------------------------------------- kid mode */
+.app.kid-app, .app.gate-app, .app.onboard-app { max-width: 640px; padding-top: 34px; }
+
+.kidwrap { display: grid; gap: 12px; }
+
+.kidbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.kidbar-left { flex: 1; min-width: 0; }
+.kidbar-name { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+.kidbar-stats { display: flex; gap: 8px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 5px 11px;
+  border-radius: 99px; font-size: 14px; font-weight: 600;
+  background: var(--panel-2); border: 1px solid var(--line);
+}
+.chip.flame.hot { background: rgba(251,191,36,0.14); border-color: rgba(251,191,36,0.4); }
+.grownups-link {
+  background: none; border: 0; color: var(--muted); font-size: 11.5px;
+  cursor: pointer; padding: 4px 2px; text-decoration: underline; text-underline-offset: 2px;
+}
+.grownups-link:hover { color: var(--ink); }
+
+.stage.kid { position: relative; padding: 26px; box-shadow: 0 10px 34px rgba(0,0,0,0.28); }
+.stage.kid .prompt { font-size: 21px; }
+
+button.btn.big { font-size: 16px; padding: 12px 22px; border-radius: 12px; }
+
+.bubble.good { background: rgba(74,222,128,0.14); border: 1px solid rgba(74,222,128,0.3); }
+.bubble.gentle { background: rgba(255,255,255,0.07); border: 1px solid var(--line); }
+
+@keyframes starpop {
+  0% { transform: scale(0.4) translateY(0); opacity: 0; }
+  35% { transform: scale(1.15) translateY(-6px); opacity: 1; }
+  100% { transform: scale(1) translateY(-28px); opacity: 0; }
+}
+.starburst {
+  position: absolute; top: 14px; right: 18px; font-size: 30px;
+  animation: starpop 650ms ease-out; pointer-events: none;
+}
+
+/* -------------------------------------------------------------- parent gate */
+.gatecard { max-width: 340px; margin: 40px auto; text-align: center; }
+.gatecard h2 { text-align: center; }
+
+.pindots { display: flex; gap: 12px; justify-content: center; margin: 20px 0; }
+.pindots span {
+  width: 15px; height: 15px; border-radius: 50%; border: 1.5px solid var(--line);
+  background: transparent; transition: background 120ms ease, border-color 120ms ease;
+}
+.pindots span.filled { background: var(--accent); border-color: var(--accent); }
+.pindots.err span { border-color: var(--bad); }
+.pindots.err span.filled { background: var(--bad); border-color: var(--bad); }
+
+.keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; max-width: 260px; margin: 0 auto; }
+.keypad .key {
+  font-size: 19px; padding: 15px 0; border-radius: 12px; cursor: pointer;
+  background: var(--panel-2); border: 1px solid var(--line); color: inherit;
+}
+.keypad .key:hover { border-color: var(--muted); }
+.keypad .key.ghost { font-size: 12px; background: transparent; }
+
+/* --------------------------------------------------------------------- misc */
+.savepill { opacity: 0; transition: opacity 300ms ease; }
+.savepill.show { opacity: 1; }

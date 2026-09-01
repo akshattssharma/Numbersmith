@@ -15,9 +15,85 @@ import type { Session } from '../engine/session';
 
 export function BrainView({ session }: { session: Session }) {
   const m = session.model;
+  const t = m.traits;
+  const bugs = Object.entries(m.misconceptions).filter(([, v]) => v && v.status !== 'resolved');
+  const lastTrace = session.trace[session.trace.length - 1];
 
   return (
     <div style={{ display: 'grid', gap: 18 }}>
+      <div className="card">
+        <h2>What the game currently believes</h2>
+
+          <div className="rows" style={{ marginBottom: 16 }}>
+            <Meter label="Confidence" v={t.confidence} />
+            <Meter label="Frustration" v={t.frustration} invert />
+            <Meter label="Perseverance" v={t.perseverance} />
+            <Meter label="Rushing" v={t.impulsivity} invert />
+          </div>
+
+          <h2>Surfaces</h2>
+          <div className="rows" style={{ marginBottom: 16 }}>
+            {(['manipulative', 'symbolic', 'story'] as const).map((r) => (
+              <div className="row" key={r}>
+                <div className="name">
+                  <span>{r}</span>
+                  <div className="bar" style={{ flex: 1 }}>
+                    <i style={{ width: `${Math.round((t.repAffinity[r] + 1) * 50)}%` }} />
+                  </div>
+                </div>
+                <span className="mono tiny" style={{ textAlign: 'right' }}>
+                  {t.repAffinity[r] >= 0 ? '+' : ''}{t.repAffinity[r].toFixed(2)}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <h2>Current policy</h2>
+          <div className="small muted" style={{ display: 'grid', gap: 4, marginBottom: 16 }}>
+            <div>world · <b style={{ color: 'var(--ink)' }}>{m.policy.world}</b></div>
+            <div>surface · <b style={{ color: 'var(--ink)' }}>{m.policy.representation}</b></div>
+            <div>tone · <b style={{ color: 'var(--ink)' }}>{m.policy.companionTone}</b></div>
+            <div>hints · <b style={{ color: 'var(--ink)' }}>{m.policy.hintTiming}</b></div>
+            <div>timer · <b style={{ color: 'var(--ink)' }}>{m.policy.timePressure ? 'on' : 'off'}</b></div>
+            <div>difficulty · <b style={{ color: 'var(--ink)' }}>{m.policy.difficulty.toFixed(2)}</b></div>
+            <div>personalization · <b style={{ color: 'var(--ink)' }}>{m.policy.personalization}</b></div>
+          </div>
+
+          <h2>Wrong rules</h2>
+          {bugs.length === 0 ? (
+            <p className="small muted" style={{ margin: 0 }}>None detected yet.</p>
+          ) : (
+            <div style={{ display: 'grid', gap: 10 }}>
+              {bugs.map(([id, v]) => (
+                <div key={id}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                    <b style={{ fontSize: 13.5 }}>{MISCONCEPTIONS[id as keyof typeof MISCONCEPTIONS].label}</b>
+                    <span className={`pill ${v!.status === 'confirmed' ? 'bad' : v!.status === 'resolving' ? 'warn' : ''}`}>
+                      {v!.status} · {v!.fires}×
+                    </span>
+                  </div>
+                  <p className="tiny muted" style={{ margin: '4px 0 0', lineHeight: 1.55 }}>
+                    “{MISCONCEPTIONS[id as keyof typeof MISCONCEPTIONS].belief}”
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {lastTrace && (
+            <>
+              <h2 style={{ marginTop: 16 }}>Why the last item was chosen</h2>
+              <p className="small muted" style={{ margin: 0, lineHeight: 1.6 }}>
+                <b className="mono" style={{ color: 'var(--ink)' }}>{lastTrace.reason}</b> ·
+                concept <b className="mono" style={{ color: 'var(--ink)' }}>{lastTrace.concept}</b> ·
+                surface <b className="mono" style={{ color: 'var(--ink)' }}>{lastTrace.representation}</b> ·
+                difficulty <b className="mono" style={{ color: 'var(--ink)' }}>{lastTrace.difficulty}</b>
+              </p>
+              <p className="tiny muted" style={{ marginTop: 8, lineHeight: 1.6 }}>{lastTrace.rationale}</p>
+            </>
+          )}
+      </div>
+
       <div className="grid two">
         <div className="card">
           <h2>Concept graph · mastery</h2>
@@ -130,6 +206,21 @@ export function BrainView({ session }: { session: Session }) {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+function Meter({ label, v, invert }: { label: string; v: number; invert?: boolean }) {
+  const bad = invert ? v > 0.55 : v < 0.35;
+  return (
+    <div className="row">
+      <div className="name">
+        <span>{label}</span>
+        <div className="bar" style={{ flex: 1 }}>
+          <i style={{ width: `${Math.round(v * 100)}%`, background: bad ? 'var(--warn)' : 'var(--accent)' }} />
+        </div>
+      </div>
+      <span className="mono tiny" style={{ textAlign: 'right' }}>{v.toFixed(2)}</span>
     </div>
   );
 }

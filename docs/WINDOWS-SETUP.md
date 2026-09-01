@@ -61,7 +61,7 @@ Click the **Actions** tab. You'll see a run called *"test and deploy"* with a sp
 amber dot. It takes about two minutes:
 
 - it type-checks the project
-- it runs all 56 tests
+- it runs all 69 tests
 - it builds the site
 - it publishes
 
@@ -115,7 +115,7 @@ of the Explorer panel and tick *NPM Scripts*.)
 You'll see `dev`, `build`, `test`, `sim`. Hover over one and click the **▶ play** button.
 
 - **dev** — runs the game. Ctrl-click the `http://localhost:5173` link that appears.
-- **test** — runs all 56 tests.
+- **test** — runs all 69 tests.
 - **sim** — prints the five-children divergence report.
 
 The first time you click any of them, it will need the dependencies installed. Hover over
@@ -172,7 +172,7 @@ Path A still works entirely in a browser if you upload the files through
 
 ## What you should end up with
 
-- A public repo at `github.com/<you>/numbersmith` — the code, 56 tests, the full write-up
+- A public repo at `github.com/<you>/numbersmith` — the code, 69 tests, the full write-up
 - A live site at `<you>.github.io/numbersmith/` — playable, no login
 - Automatic redeploys: change anything, commit in GitHub Desktop, push, and it rebuilds
 
