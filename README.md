@@ -191,6 +191,16 @@ game. The fix wasn't to remove the model view, it was to move it — it now live
 Brain, behind the same parent gate as the cast editor and the child roster, and the
 child's screen shows only the game, a star count and a streak.
 
+**11. A debug-console layout and a "boring" layout are not the only two
+options.** Early feedback on the child screen wasn't "add more explanation" —
+it was the opposite: too many words, not enough reason to be curious about
+what happens next. The fix wasn't a redesign of the mechanic, it was
+presentation: illustrated backdrops per world, a single animated companion
+(Lumie) whose mood is conveyed through motion rather than swapped art, item
+progress as dots instead of a text counter, and every remaining line of
+companion/UI copy cut to the shortest thing that still tells the child what to
+do. The pedagogy underneath — and everything in The Brain — is unchanged.
+
 ---
 
 ## Safety is an architecture, not a filter

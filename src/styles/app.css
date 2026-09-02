@@ -218,23 +218,84 @@ button.btn.tiny { font-size: 12px; padding: 5px 10px; }
 }
 .grownups-link:hover { color: var(--ink); }
 
-.stage.kid { position: relative; padding: 26px; box-shadow: 0 10px 34px rgba(0,0,0,0.28); }
-.stage.kid .prompt { font-size: 21px; }
+.stage.kid {
+  position: relative; padding: 0; border-radius: var(--radius); overflow: hidden;
+  box-shadow: 0 14px 40px rgba(0,0,0,0.4);
+  background-size: cover; background-position: center 35%; background-repeat: no-repeat;
+}
+.stage-scrim { position: absolute; inset: 0; }
+.stage-content { position: relative; padding: 22px; }
+.stage.kid .prompt { font-size: 21px; text-shadow: 0 2px 10px rgba(0,0,0,0.35); }
+
+/* A soft glass panel behind the interactive board, so the art reads through
+   at the edges of the stage but the numbers a child taps stay unambiguous. */
+.playboard {
+  background: rgba(10,14,24,0.38); backdrop-filter: blur(3px);
+  border: 1px solid rgba(255,255,255,0.08); border-radius: 14px;
+  padding: 14px; margin: 4px 0 4px;
+}
+
+.itempips { display: flex; gap: 5px; margin-bottom: 14px; }
+.itempips span {
+  width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.22);
+  transition: background 200ms ease, transform 200ms ease;
+}
+.itempips span.on { background: var(--accent); transform: scale(1.25); }
 
 button.btn.big { font-size: 16px; padding: 12px 22px; border-radius: 12px; }
 
-.bubble.good { background: rgba(74,222,128,0.14); border: 1px solid rgba(74,222,128,0.3); }
-.bubble.gentle { background: rgba(255,255,255,0.07); border: 1px solid var(--line); }
+.bubble.good { background: rgba(74,222,128,0.16); border: 1px solid rgba(74,222,128,0.35); }
+.bubble.gentle { background: rgba(255,255,255,0.08); border: 1px solid var(--line); }
 
 @keyframes starpop {
-  0% { transform: scale(0.4) translateY(0); opacity: 0; }
-  35% { transform: scale(1.15) translateY(-6px); opacity: 1; }
-  100% { transform: scale(1) translateY(-28px); opacity: 0; }
+  0% { transform: scale(0.3) translateY(0) rotate(-8deg); opacity: 0; }
+  30% { transform: scale(1.3) translateY(-10px) rotate(6deg); opacity: 1; }
+  100% { transform: scale(0.9) translateY(-46px) rotate(0deg); opacity: 0; }
 }
 .starburst {
-  position: absolute; top: 14px; right: 18px; font-size: 30px;
-  animation: starpop 650ms ease-out; pointer-events: none;
+  position: absolute; top: 14px; right: 18px; font-size: 32px; z-index: 5;
+  animation: starpop 900ms ease-out; pointer-events: none;
 }
+
+/* -------------------------------------------------------------------- Lumie */
+.lumie { position: relative; flex: none; }
+.lumie img { width: 100%; height: 100%; object-fit: contain; display: block; filter: drop-shadow(0 3px 10px rgba(94,234,212,0.35)); }
+
+@keyframes lumieFloat {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-6px) rotate(2deg); }
+}
+@keyframes lumieHappy {
+  0%, 100% { transform: translateY(0) scale(1) rotate(0deg); }
+  25% { transform: translateY(-9px) scale(1.08) rotate(-6deg); }
+  50% { transform: translateY(0) scale(1) rotate(0deg); }
+  75% { transform: translateY(-9px) scale(1.08) rotate(6deg); }
+}
+@keyframes lumieGentle {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(2px) rotate(-4deg); }
+}
+@keyframes lumieThink {
+  0%, 100% { transform: translateY(0) rotate(-3deg); }
+  50% { transform: translateY(-3px) rotate(3deg); }
+}
+.lumie-idle img { animation: lumieFloat 3.2s ease-in-out infinite; }
+.lumie-happy img { animation: lumieHappy 700ms ease-in-out 2; }
+.lumie-gentle img { animation: lumieGentle 1.6s ease-in-out infinite; opacity: 0.92; }
+.lumie-thinking img { animation: lumieThink 900ms ease-in-out infinite; }
+
+@keyframes sparkFly {
+  0% { transform: translate(0, 0) scale(0.4) rotate(0deg); opacity: 0; }
+  30% { opacity: 1; }
+  100% { transform: translate(var(--dx), var(--dy)) scale(1.1) rotate(90deg); opacity: 0; }
+}
+.lumie-spark {
+  position: absolute; font-size: 14px; color: #ffe27a; z-index: 2;
+  animation: sparkFly 800ms ease-out forwards;
+}
+.lumie-spark.s1 { top: 6px; left: 4px; --dx: -18px; --dy: -22px; }
+.lumie-spark.s2 { top: 2px; right: 2px; --dx: 20px; --dy: -18px; animation-delay: 80ms; }
+.lumie-spark.s3 { bottom: 4px; right: 10px; --dx: 14px; --dy: 16px; animation-delay: 150ms; }
 
 /* -------------------------------------------------------------- parent gate */
 .gatecard { max-width: 340px; margin: 40px auto; text-align: center; }
