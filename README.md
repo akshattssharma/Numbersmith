@@ -43,6 +43,7 @@ diagnosis itself, deliberately; see [Safety](#safety-is-an-architecture-not-a-fi
 | **Intervention graph** | Repairs matched to the child's strongest surface; every attempt logged as `(bug, intervention, surface, outcome)` | [`interventions.ts`](src/engine/interventions.ts) |
 | **Struggle controller** | PI controller with online bias correction, plus frustration and boredom overrides | [`struggle.ts`](src/engine/struggle.ts) |
 | **Selector** | Decides what happens next and explains itself in one sentence, every time | [`selector.ts`](src/engine/selector.ts) |
+| **Quest layer** | Wraps the item stream in a stated goal, a meter that fills on effort, and a designed win — so a sitting has a beginning, a middle and an end instead of running forever | [`quest.ts`](src/engine/quest.ts) |
 | **Parent insights** | Plain-language findings and an off-screen activity. No accuracy percentage anywhere | [`parentInsights.ts`](src/engine/parentInsights.ts) |
 | **Personalization** | The child's friends and favourite things woven into problems — gated by the learner model, with a control holdout to check it works | [`cast.ts`](src/engine/cast.ts), [`storyTemplates.ts`](src/engine/storyTemplates.ts) |
 | **Household** | Kid mode vs. parent mode, a local PIN gate, and more than one child on the same device — each with their own progress, cast and favourites | [`household.ts`](src/engine/household.ts) |
@@ -201,6 +202,33 @@ progress as dots instead of a text counter, and every remaining line of
 companion/UI copy cut to the shortest thing that still tells the child what to
 do. The pedagogy underneath — and everything in The Brain — is unchanged.
 
+**12. A complete tutoring loop is not a game, and the gap doesn't show up in
+tests.** `observe → diagnose → adapt → serve the next item` is a loop with no
+exit and no shape: "what's the optimal next item" always has an answer, so it
+served items until a child had answered 65 of them with nothing that ever
+resolved — the engine already computed a personalized `sessionTarget` and
+exposed `shouldEnd()`, and the screen never called it. Every existing test
+passed the whole time, because none of them asked whether the *experience*
+had a beginning, a middle, and an end. The fix adds two wrapper layers
+(`quest.ts`, and quest/sitting bookkeeping in `session.ts`) without touching
+the pedagogy underneath: items are grouped into a quest with a stated goal
+and a meter that fills on items completed — never on correctness, so a
+struggling child still finishes their quest — and a quest's last item is
+reserved as a designed win, pitched at roughly 88% predicted success on the
+child's strongest concept rather than left to chance. A sitting holds one to
+three quests and ends the moment one concludes if the child's own stamina
+estimate (or the frustration safety valve) says it should, closing on a
+resolved goal rather than mid-item. The honest cost, paid deliberately: a
+quest's last item is chosen to land, not to teach or diagnose, so roughly one
+item in six to nine carries less diagnostic weight than an ordinary one —
+traded for an ending that actually arrives. A second bug fell out of fixing
+the first: calibration was gated on the *session's* item count, which is
+harmless for a session that never resets, but would have replayed the same
+six diagnostic items at the start of every sitting once sittings became a
+real boundary — fixed by gating it on lifetime history instead, which also
+means the existing "welcome back" companion lines (written for a returning
+child, previously unreachable because nothing ever reset) now actually fire.
+
 ---
 
 ## Safety is an architecture, not a filter
@@ -240,7 +268,7 @@ companion evaluates the work, never the child.
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 69 tests — engine behaviour, the divergence thesis, personalization safety
+npm test           # 84 tests — engine behaviour, the divergence thesis, personalization safety, the quest/sitting shape
 npm run build      # production build to dist/
 ```
 

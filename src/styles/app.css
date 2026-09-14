@@ -235,12 +235,38 @@ button.btn.tiny { font-size: 12px; padding: 5px 10px; }
   padding: 14px; margin: 4px 0 4px;
 }
 
-.itempips { display: flex; gap: 5px; margin-bottom: 14px; }
-.itempips span {
-  width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,0.22);
+/* ---------------------------------------------------------------- quest */
+.queststrip { margin-bottom: 14px; }
+.questlabel {
+  display: block; font-size: 12.5px; font-weight: 600; letter-spacing: 0.01em;
+  margin-bottom: 6px; opacity: 0.92; text-shadow: 0 1px 6px rgba(0,0,0,0.4);
+}
+.questmeter { display: flex; gap: 5px; }
+.questmeter span {
+  flex: 1; max-width: 22px; height: 7px; border-radius: 4px; background: rgba(255,255,255,0.22);
   transition: background 200ms ease, transform 200ms ease;
 }
-.itempips span.on { background: var(--accent); transform: scale(1.25); }
+.questmeter span.on { background: var(--accent); transform: scaleY(1.2); }
+
+.winbadge {
+  display: inline-block; font-size: 12.5px; font-weight: 600; margin-bottom: 10px;
+  padding: 4px 10px; border-radius: 999px; background: rgba(94,234,212,0.16);
+  border: 1px solid rgba(94,234,212,0.4);
+}
+
+.questcard, .sittingcard {
+  background: rgba(10,14,24,0.5); backdrop-filter: blur(3px);
+  border: 1px solid rgba(255,255,255,0.12); border-radius: 14px;
+  padding: 16px 18px; display: grid; gap: 8px; width: 100%;
+}
+.questcard b, .sittingcard b { font-size: 16px; }
+.sittingcard .controls { margin-top: 4px; }
+
+.stage-content.resting {
+  display: flex; flex-direction: column; align-items: center; text-align: center;
+  padding: 46px 22px; gap: 6px;
+}
+.stage-content.resting .prompt { max-width: 36ch; }
 
 button.btn.big { font-size: 16px; padding: 12px 22px; border-radius: 12px; }
 

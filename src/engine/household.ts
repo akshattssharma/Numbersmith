@@ -1,6 +1,7 @@
 import type { LearnerModel } from './types';
 import { createLearner } from './learnerModel';
 import { defaultProfile, normaliseName, type PersonalProfile } from './cast';
+import type { QuestState } from './quest';
 import { initStruggle, type StruggleState } from './struggle';
 
 /**
@@ -34,6 +35,12 @@ export interface ChildSave {
   struggle: StruggleState;
   profile: PersonalProfile;
   index: number;
+  /** the quest in flight when this child was last saved */
+  quest: QuestState | null;
+  questNumber: number;
+  /** true if their last sitting reached its own natural end — read on the
+   *  next load to start a fresh sitting rather than resuming a finished one */
+  sittingEnded: boolean;
 }
 
 const HH_KEY = 'numbersmith.household.v1';
@@ -66,7 +73,10 @@ export function loadHousehold(): Household {
       const name = normaliseName(profile.childName ?? '') || 'Player';
       const id = `c_${Date.now().toString(36)}`;
       const meta: ChildMeta = { id, name, characterId: 'c00', createdAt: Date.now() };
-      saveChildSave(id, { model: createLearner(id, name), struggle: initStruggle(), profile, index: 0 });
+      saveChildSave(id, {
+        model: createLearner(id, name), struggle: initStruggle(), profile, index: 0,
+        quest: null, questNumber: 0, sittingEnded: false,
+      });
       const h: Household = { pin: null, children: [meta], activeChildId: id };
       saveHousehold(h);
       return h;
@@ -92,13 +102,29 @@ export function newChildSave(id: string, name: string): ChildSave {
     struggle: initStruggle(),
     profile: defaultProfile(),
     index: 0,
+    quest: null,
+    questNumber: 0,
+    sittingEnded: false,
+  };
+}
+
+/** Old saves predate the quest layer — default the fields they never had. */
+function withQuestDefaults(raw: Partial<ChildSave>, fallback: ChildSave): ChildSave {
+  return {
+    model: raw.model ?? fallback.model,
+    struggle: raw.struggle ?? fallback.struggle,
+    profile: raw.profile ?? fallback.profile,
+    index: raw.index ?? fallback.index,
+    quest: raw.quest ?? null,
+    questNumber: raw.questNumber ?? 0,
+    sittingEnded: raw.sittingEnded ?? false,
   };
 }
 
 export function loadChildSave(id: string, name: string): ChildSave {
   try {
     const raw = localStorage.getItem(childKey(id));
-    if (raw) return JSON.parse(raw) as ChildSave;
+    if (raw) return withQuestDefaults(JSON.parse(raw), newChildSave(id, name));
   } catch {
     /* fall through to a fresh save */
   }

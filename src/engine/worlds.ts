@@ -28,6 +28,8 @@ export interface World {
   frame: Record<ChallengeKind, (p: Problem) => string>;
   /** what a completed run adds to */
   reward: string;
+  /** the stated goal for a quest of this many items — read once, at the start */
+  quest: (itemsTarget: number) => string;
 }
 
 export const WORLDS: Record<WorldId, World> = {
@@ -38,6 +40,7 @@ export const WORLDS: Record<WorldId, World> = {
     units: ['cell', 'pod', 'crate'],
     palette: { bg: '#0d1526', ink: '#e8eefc', accent: '#5eead4', unit: '#7dd3fc', bundle: '#34d399' },
     reward: 'a longer jump on the star map',
+    quest: (n) => `Load ${n} cells before the jump`,
     frame: {
       load: (p) => `The tank takes exactly ${p.answer} cells. Load it.`,
       combine: (p) => `Two shipments docked: ${p.a} cells and ${p.b} cells. Merge them into one hold.`,
@@ -53,6 +56,7 @@ export const WORLDS: Record<WorldId, World> = {
     units: ['berry', 'basket', 'cart'],
     palette: { bg: '#14210f', ink: '#eef7e6', accent: '#a3e635', unit: '#fca5a5', bundle: '#84cc16' },
     reward: 'a new creature at the water hole',
+    quest: (n) => `Gather ${n} berries before the nest closes`,
     frame: {
       load: (p) => `The nest needs exactly ${p.answer} berries. Fill it.`,
       combine: (p) => `You picked ${p.a} berries this morning and ${p.b} after lunch. Put them together.`,
@@ -68,6 +72,7 @@ export const WORLDS: Record<WorldId, World> = {
     units: ['coin', 'roll', 'case'],
     palette: { bg: '#1a1420', ink: '#f4ecff', accent: '#f0abfc', unit: '#fde68a', bundle: '#c084fc' },
     reward: 'another page of the case file',
+    quest: (n) => `Recover ${n} coins before the ledger closes`,
     frame: {
       load: (p) => `The ledger says the strongbox held exactly ${p.answer} coins. Rebuild it.`,
       combine: (p) => `Two envelopes: ${p.a} coins and ${p.b} coins. What did the thief take in total?`,

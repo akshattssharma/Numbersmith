@@ -51,7 +51,10 @@ If this works, content scales it. If it does not, content cannot save it.
 - **Intervention graph** — 15 interventions across 3 surfaces, every delivery logged
 - **Productive-struggle controller** — PI control with online bias correction,
   frustration and boredom overrides
-- **Selector** — 9 selection strategies, each self-explaining
+- **Selector** — 10 selection strategies, each self-explaining
+- **Quest layer** — items grouped into a quest with a stated goal and an effort-driven
+  meter, a designed win reserved for its last item, and a sitting that ends on purpose
+  (1-3 quests, closing at a resolved goal rather than running until the child stops)
 - **Three worlds** reskinning one bundle/unbundle mechanic
 - **Companion** — bounded template bank with a gated optional model rephrase
 - **Parent product** — insight generator and a fixed question set

@@ -39,10 +39,15 @@ export default function App() {
   const sessionRef = useRef<{ id: string | null; session: Session | null }>({ id: null, session: null });
   if (activeId && sessionRef.current.id !== activeId) {
     const save: ChildSave = loadChildSave(activeId, activeMeta?.name ?? 'Player');
-    sessionRef.current = {
-      id: activeId,
-      session: new Session(save.model, Date.now() & 0xffff, save.profile, save.struggle, save.index),
-    };
+    const session = new Session(
+      save.model, Date.now() & 0xffff, save.profile, save.struggle,
+      save.index, save.quest, save.questNumber, save.sittingEnded,
+    );
+    // Their last sitting already reached its own end — opening the app again
+    // is the next visit, so it starts a fresh one rather than resuming a
+    // sitting that already resolved.
+    if (save.sittingEnded) session.beginSitting();
+    sessionRef.current = { id: activeId, session };
   }
   const session = sessionRef.current.session;
 
