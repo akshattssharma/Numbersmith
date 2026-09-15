@@ -140,3 +140,27 @@ describe('the sitting: quests with a designed win, ending on purpose', () => {
     }
   });
 });
+
+describe('the pre-answer companion line', () => {
+  it("is not stuck on the 'greet' bucket for every item after the first", () => {
+    // Regression test for a real bug: the line was picked by re-deriving a
+    // second, subtly different beat expression whose final fallback said
+    // 'greet' where it meant 'correct' — so every non-opening, non-catch
+    // item showed a greeting line forever, no matter how many lines existed
+    // in the 'correct' bucket. This asserts the actual companion.ts beat
+    // metadata, not just line text (which can coincidentally overlap).
+    const s = new Session();
+    for (let i = 0; i < 6; i++) {
+      const t = s.nextTurn(); // burn through calibration first
+      s.submit(t, t.selection.problem.answer, { latencyMs: 3000 });
+    }
+    const beats: string[] = [];
+    for (let i = 0; i < 10; i++) {
+      const turn = s.nextTurn();
+      beats.push(turn.line.beat);
+      s.submit(turn, turn.selection.problem.answer, { latencyMs: 3000 });
+    }
+    // Item 0 of the sitting is allowed to greet; none of the rest should.
+    expect(beats.slice(1).every((b) => b === 'greet')).toBe(false);
+  });
+});

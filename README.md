@@ -42,7 +42,8 @@ diagnosis itself, deliberately; see [Safety](#safety-is-an-architecture-not-a-fi
 | **Misconception engine** | 10 executable bug signatures. Recovers the *rule* behind a wrong answer instead of recording a zero | [`misconceptions.ts`](src/engine/misconceptions.ts) |
 | **Intervention graph** | Repairs matched to the child's strongest surface; every attempt logged as `(bug, intervention, surface, outcome)` | [`interventions.ts`](src/engine/interventions.ts) |
 | **Struggle controller** | PI controller with online bias correction, plus frustration and boredom overrides | [`struggle.ts`](src/engine/struggle.ts) |
-| **Selector** | Decides what happens next and explains itself in one sentence, every time | [`selector.ts`](src/engine/selector.ts) |
+| **Selector** | Decides what happens next and explains itself in one sentence, every time — including a duty-cycled override so no single interaction kind runs unbroken for long | [`selector.ts`](src/engine/selector.ts) |
+| **Hints** | Generated from the actual problem on screen — its operands, its regrouping state — and made more specific on a second ask, never the same fixed sentence twice | [`hints.ts`](src/engine/hints.ts) |
 | **Quest layer** | Wraps the item stream in a stated goal, a meter that fills on effort, and a designed win — so a sitting has a beginning, a middle and an end instead of running forever | [`quest.ts`](src/engine/quest.ts) |
 | **Gather** | A real drag gesture for equal-groups problems, not a typed number — and the way it's played (filled at once vs. one at a time) is a diagnostic signal a typed answer cannot produce | [`GatherBoard.tsx`](src/components/GatherBoard.tsx), [`dragStrategy.ts`](src/engine/dragStrategy.ts) |
 | **Parent insights** | Plain-language findings and an off-screen activity. No accuracy percentage anywhere | [`parentInsights.ts`](src/engine/parentInsights.ts) |
@@ -256,6 +257,34 @@ interaction: `load`/`combine`/`ship` still use the bundle board, which is
 already a real physical model (tens and ones you build and break open), not
 a placeholder waiting for the same treatment on principle.
 
+**14. Real play surfaces bugs a fixed test suite doesn't ask about, because it
+doesn't know to.** A short real playthrough turned up a genuine defect
+(`session.ts`'s pre-answer line was computed twice, and the second, actually-used
+version had a dead branch: its final fallback said `'greet'` where it meant
+`'correct'`, so every item after the first in a sitting greeted the child
+again instead of reacting to what they'd just done) that 94 passing tests had
+not caught, because nothing was asserting on companion *beat* metadata, only
+on the pedagogy. Same playthrough found that concept-to-kind is a fixed 1:1
+mapping (`place-value-2digit` is always "build the pile"), which is fine in
+isolation but means an ordinary, correctly-progressing child could hit the
+same interaction 25-39 items in a row whenever the selector's own good
+reasons (shore a shared prerequisite, consolidate near-mastered material)
+kept landing on the same concept — and, more surprising, that a child who
+masters the entire 14-concept graph (which a consistently-succeeding learner
+does in roughly 50-60 items) hit an unrelated bug: `pickFrontier`'s fallback
+defaulted to `order[0]` regardless of whether that concept was itself
+mastered, so a "graduated" child got hammered with one fixed concept forever
+with no honest reason to. Fixed with a duty-cycled kind-variety override
+(same shape as the existing repair duty-cycle) plus a staleness-based
+rotation once nothing is left to teach — both additive, neither touches
+tiers with a genuine pedagogical reason to hold their ground (repair,
+disambiguate, shore-prerequisite are never overridden). Also: a hint that
+says the same fixed sentence regardless of the problem on screen isn't a
+hint, it only reads like one until a child asks twice — replaced with
+`engine/hints.ts`, generated from the actual operands and regrouping state
+of the item in front of the child, and made progressively more concrete on
+a second ask without ever stating the final answer outright.
+
 ---
 
 ## Safety is an architecture, not a filter
@@ -295,7 +324,7 @@ companion evaluates the work, never the child.
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 94 tests — engine behaviour, the divergence thesis, personalization safety, the quest/sitting shape, the gather signal
+npm test           # 110 tests — engine behaviour, the divergence thesis, personalization safety, the quest/sitting shape, the gather signal, companion variety, dynamic hints, kind variety
 npm run build      # production build to dist/
 ```
 

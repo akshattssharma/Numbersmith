@@ -60,8 +60,18 @@ nav.tabs button[aria-selected="true"] { color: var(--accent); border-bottom-colo
 .stage { border-radius: var(--radius); padding: 22px; border: 1px solid var(--line); transition: background 400ms ease; }
 .prompt { font-size: 19px; line-height: 1.45; margin: 0 0 18px; max-width: 46ch; }
 
-.trays { display: flex; gap: 26px; flex-wrap: wrap; align-items: flex-start; margin-bottom: 14px; }
-.tray { min-width: 140px; }
+/* A fixed two-column grid, not a wrapping flex row: each tray keeps the same
+   width and position on screen no matter how many bundles or ones are in it,
+   so adding a tenth cube never shoves the other tray sideways. The gap is
+   generous on purpose — the two trays are two different places, not one
+   crowded shelf. */
+.trays { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; margin-bottom: 14px; }
+@media (max-width: 480px) { .trays { grid-template-columns: 1fr; } }
+.tray {
+  padding: 10px; border-radius: 10px; min-height: 150px;
+  border: 2px solid transparent; transition: border-color 150ms ease, background 150ms ease;
+}
+.tray.hover { border-color: var(--accent); background: rgba(94,234,212,0.08); }
 .tray .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.65; margin-bottom: 8px; }
 
 .bundles { display: flex; gap: 6px; flex-wrap: wrap; align-items: flex-end; min-height: 62px; }
@@ -76,7 +86,12 @@ nav.tabs button[aria-selected="true"] { color: var(--accent); border-bottom-colo
   width: 15px; height: 15px; border-radius: 3px;
   border: 1px solid rgba(255,255,255,0.28); cursor: pointer;
 }
+.rod.draggable, .cube.draggable { cursor: grab; touch-action: none; }
+.rod.draggable:active, .cube.draggable:active { cursor: grabbing; }
 .ones-grid { display: grid; grid-template-columns: repeat(5, 15px); gap: 4px; }
+
+.bbsupply { display: flex; gap: 28px; flex-wrap: wrap; margin-top: 4px; }
+.bbsupply-item { display: flex; align-items: center; gap: 10px; }
 
 /* --------------------------------------------------------------- gather */
 .gathercells { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
@@ -258,10 +273,6 @@ button.btn.tiny { font-size: 12px; padding: 5px 10px; }
 
 /* ---------------------------------------------------------------- quest */
 .queststrip { margin-bottom: 14px; }
-.questlabel {
-  display: block; font-size: 12.5px; font-weight: 600; letter-spacing: 0.01em;
-  margin-bottom: 6px; opacity: 0.92; text-shadow: 0 1px 6px rgba(0,0,0,0.4);
-}
 .questmeter { display: flex; gap: 5px; }
 .questmeter span {
   flex: 1; max-width: 22px; height: 7px; border-radius: 4px; background: rgba(255,255,255,0.22);
