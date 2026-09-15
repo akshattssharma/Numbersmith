@@ -25,7 +25,7 @@ CI (`.github/workflows/deploy.yml`) runs `npx tsc --noEmit`, `npm test`, then `n
 Numbersmith is a from-scratch adaptive maths tutor for grades 2-3 (14 concepts: number sense through multiplication foundations). The one architectural rule everything else follows: **the engine decides, the UI renders.**
 
 - **`src/engine/`** — the entire intelligence layer. Zero React, zero DOM. Every file here is a pure function or a plain class over plain data, and is fully unit-testable without a browser. This is deliberate portability: the engine should survive a different renderer.
-- **`src/components/`** and **`src/screens/`** — thin renderers. A screen reads what the engine already decided (`session.quest`, `turn.selection`, `turn.line`, `TurnResult` fields) and displays it; it does not itself decide what to teach, what to say, or when something is "done." If you find yourself writing pedagogy or a decision branch in a `.tsx` file, it almost certainly belongs in `src/engine/` instead.
+- **`src/components/`** and **`src/screens/`** — thin renderers. A screen reads what the engine already decided (`session.quest`, `turn.selection`, `TurnResult` fields) and displays it; it does not itself decide what to teach, what to say, or when something is "done." If you find yourself writing pedagogy or a decision branch in a `.tsx` file, it almost certainly belongs in `src/engine/` instead.
 
 ### The core loop
 
@@ -37,7 +37,7 @@ play -> observe -> diagnose -> update the model -> re-derive the policy
 ```
 
 - `session.nextTurn()` calls `selector.ts`'s `selectNext()`, which walks an ordered decision tree (most urgent first): resolve a confirmed misconception > disambiguate two candidate bugs > repair a blocking prerequisite > spaced review > move into the frontier concept > probe a neglected representation > vary kind if one interaction has repeated too long. Every selection carries a one-sentence `rationale`, surfaced in The Brain (parent view) — nothing the engine does is a black box to the builder, even though none of it reaches the child.
-- `session.submit()` runs `diagnose()` + `recordAttempt()` (`learnerModel.ts`) to update per-concept Bayesian knowledge tracing (BKT) and behavioural traits (strategy, impulsivity, frustration, confidence, stamina, inferred from latency/churn/hints, never self-reported), closes the loop on the struggle controller (`struggle.ts`, a PI controller with online bias correction), and returns a `TurnResult` with everything that happened: the diagnosis, the next companion line, and any of three transitions that just occurred (`starsEarned`, `collectionGained`, `newlyMastered`/`newlyReady`) computed by comparing model state before/after the attempt.
+- `session.submit()` runs `diagnose()` + `recordAttempt()` (`learnerModel.ts`) to update per-concept Bayesian knowledge tracing (BKT) and behavioural traits (strategy, impulsivity, frustration, confidence, stamina, inferred from latency/churn/hints, never self-reported), closes the loop on the struggle controller (`struggle.ts`, a PI controller with online bias correction), and returns a `TurnResult` with everything that happened: the diagnosis, the companion's feedback line, and any of three transitions that just occurred (`starsEarned`, `collectionGained`, `newlyMastered`/`newlyReady`) computed by comparing model state before/after the attempt. There is deliberately no pre-answer companion line — `Turn` used to carry one, but its beat always resolved to the same bank as post-answer feedback, so Lumie appeared to compliment items the child hadn't attempted yet (README finding 17). The companion only ever speaks after an attempt.
 
 ### Concept graph and the representation delta
 
@@ -55,12 +55,20 @@ Three facts the engine already produces every turn — a correct answer, a concl
 
 `household.ts` is the only persistence layer — everything lives in `localStorage`, on-device, nothing is sent anywhere. One `Household` (a PIN, a roster of children) plus one `ChildSave` per child (their `LearnerModel`, struggle state, quest/sitting state, stars, collection). `withDefaults()` migrates old saves forward field-by-field as new save fields are added — when adding a new persisted field, extend `ChildSave`, `newChildSave()`, and `withDefaults()` together, or an old save silently loses it.
 
+### Speech
+
+`speech.ts` wraps `window.speechSynthesis` and the Web Audio API — a browser-capability module like `household.ts`'s use of `localStorage`, not pedagogy, so it lives in `src/engine/` but guards every export against running where `window` doesn't exist (vitest's environment is `node`). On-device TTS is the only workable choice for the prompt and hints specifically, since both are procedurally generated and there is no fixed script a recording could ever cover. `speakSequence(texts, tone)` takes a `SpeechTone` (`'calm' | 'excited' | 'soft'`) that maps to a rate/pitch preset — calm for prompts and hints, excited for a correct answer (paired with a synthesized chime, no audio asset), soft for a miss. Voice selection scores available voices by English + `localService` + a female-name-pattern match, and **never** trades `localService` for a fancier-sounding voice — some platforms' better voices are a network call, which would break the "nothing leaves the device" commitment. `soundOn` is a persisted per-child toggle on `ChildSave`/`Session`, extended the same way `stars`/`collection` are.
+
+### Installable / offline
+
+`vite-plugin-pwa` (configured in `vite.config.ts`) generates the manifest and a precaching service worker at build time — nothing to maintain by hand. The service worker only registers against a real build (`npm run build && npm run preview`), never `npm run dev`. `public/icons/` holds the generated app icons (Lumie's star mark, rendered at the sizes each platform needs); `index.html` carries the iOS-specific meta tags Safari reads for "Add to Home Screen" since it ignores the manifest for that.
+
 ### Safety architecture (see README "Safety is an architecture, not a filter")
 
 The companion (`companion.ts`) never holds an open-ended conversation with a child: the engine chooses the intent and content of every line from a bounded template bank; an optional model call may only *rephrase* inside a length cap, a banned-phrase list and a post-generation gate, falling back to the written line on any failure. The parent view is a fixed question list, not a chat box. No accuracy percentage is ever shown to a child — only `session.stars`, a streak, and (via the Brain view) the same kind of plain-language findings a parent gets.
 
 ## Where to look first
 
-- `README.md` — the full "Findings from building it" log (15 entries as of this writing) documents every non-obvious bug and the reasoning behind fixes already made; check it before re-deriving something that was already tried and found wrong.
+- `README.md` — the full "Findings from building it" log (17 entries as of this writing) documents every non-obvious bug and the reasoning behind fixes already made; check it before re-deriving something that was already tried and found wrong.
 - `docs/PRODUCT_PLAN.md` — thesis, scope (grade 2-3, 14 concepts, deliberately not K-5), and what's deliberately not built yet.
 - `src/engine/__tests__/divergence.test.ts` + `scripts/divergence.ts` + `screens/FiveChildren.tsx` — the product's central thesis (adapting the whole experience, not just difficulty, changes outcomes) expressed as five simulated learner personas and asserted in CI, not just claimed.

@@ -3,9 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Numbersmith — an AI-native maths game</title>
     <meta name="description" content="A prototype maths game that builds a model of how each child thinks — their misconceptions, their strongest representation, their confidence — and adapts the whole experience, not just the difficulty." />
+    <meta name="theme-color" content="#0d1117" />
+    <!-- iOS ignores the manifest for "Add to Home Screen" — these are the
+         meta tags Safari actually reads for a standalone, no-browser-chrome
+         install with the right icon. -->
+    <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Numbersmith" />
   </head>
   <body>
     <div id="root"></div>

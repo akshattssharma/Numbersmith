@@ -47,7 +47,8 @@ diagnosis itself, deliberately; see [Safety](#safety-is-an-architecture-not-a-fi
 | **Quest layer** | Wraps the item stream in a stated goal, a meter that fills on effort, and a designed win — so a sitting has a beginning, a middle and an end instead of running forever | [`quest.ts`](src/engine/quest.ts) |
 | **Gather** | A real drag gesture for equal-groups problems, not a typed number — and the way it's played (filled at once vs. one at a time) is a diagnostic signal a typed answer cannot produce | [`GatherBoard.tsx`](src/components/GatherBoard.tsx), [`dragStrategy.ts`](src/engine/dragStrategy.ts) |
 | **Companion** | Lumie, an inline SVG with independently animated eyes (they track the pointer), a blink, and a mouth shape per mood — not a PNG swapped between a handful of static poses | [`Lumie.tsx`](src/components/Lumie.tsx) |
-| **Speech** | The prompt, Lumie's line and every hint read aloud on-device (no recording, no network) — the only workable choice once content is procedurally generated rather than fixed; a synthesized chime marks a correct answer, and sound is a persisted per-child toggle | [`speech.ts`](src/engine/speech.ts) |
+| **Speech** | The prompt and every hint read aloud on-device (no recording, no network) — the only workable choice once content is procedurally generated rather than fixed. Tone shifts with the moment (calm for a prompt, warmer and quicker for a correct answer, softer for a miss); sound is a persisted per-child toggle. Deliberately says nothing before the child has answered — see finding 17 | [`speech.ts`](src/engine/speech.ts) |
+| **Installable / offline** | A manifest and a precaching service worker (`vite-plugin-pwa`) — installs to a home screen or dock with its own icon, and keeps working with no connection once it's been opened once | [`vite.config.ts`](vite.config.ts), [`public/icons/`](public/icons) |
 | **Reward tiers** | Three things that already existed in the model — a correct answer, a concluded quest, a concept crossing mastery — made visible: a lifetime star count, a per-world collection, and a kid-safe constellation of what's been learned. Every tier flies from where the child answered to where it lives, so the counters never feel disconnected from the play that earned them | [`session.ts`](src/engine/session.ts), [`Constellation.tsx`](src/components/Constellation.tsx), [`WorldCollection.tsx`](src/components/WorldCollection.tsx), [`RewardFlight.tsx`](src/components/RewardFlight.tsx), [`ProgressOverlay.tsx`](src/components/ProgressOverlay.tsx) |
 | **Parent insights** | Plain-language findings and an off-screen activity. No accuracy percentage anywhere | [`parentInsights.ts`](src/engine/parentInsights.ts) |
 | **Personalization** | The child's friends and favourite things woven into problems — gated by the learner model, with a control holdout to check it works | [`cast.ts`](src/engine/cast.ts), [`storyTemplates.ts`](src/engine/storyTemplates.ts) |
@@ -334,6 +335,26 @@ Strict Mode double-invoke, the same "mount, clean up, mount again" check
 React deliberately runs only in development, not a defect in the effect
 itself.
 
+**17. Reading text aloud doesn't just narrate a bug, it amplifies it.**
+`session.ts` computed a "pre-answer companion line" for every item after
+the first — but its beat always resolved to `'correct'`, so Lumie's line
+before an answer was drawn from the exact same bank as feedback *after*
+one. On screen this read as mildly repetitive and easy to skim past: a
+child playing normally would see "Alright, that one counted." sitting
+next to an unanswered problem and not think much of it. Said out loud,
+the same line stopped being skimmable — a voice audibly congratulating a
+child on a problem they hadn't touched yet is confusing in a way idle
+text never was, and it surfaced immediately from a real playthrough, not
+a test. The fix wasn't a better beat for the pre-answer moment; there
+isn't one, because there's nothing genuine for Lumie to say about an
+item nobody has attempted. `Turn.line` was removed from the engine
+entirely rather than patched, and the companion bubble now renders
+nothing at all until the child answers, resetting to nothing the moment
+the next item loads. Same lesson as finding 14, from the opposite
+direction: a fixed test suite didn't catch this because nothing was
+asserting on it, and this time neither did silently reading the screen —
+it took someone actually listening.
+
 ---
 
 ## Safety is an architecture, not a filter
@@ -375,10 +396,20 @@ npm install
 npm run dev        # http://localhost:5173
 npm test           # 123 tests — engine behaviour, the divergence thesis, personalization safety, the quest/sitting shape, the gather signal, companion variety, dynamic hints, kind variety, the reward tiers and their persistence, speech
 npm run build      # production build to dist/
+npm run preview    # serves dist/ — the service worker only registers against a real build, not `npm run dev`
 ```
 
 No API keys. No backend. No account. The whole engine runs client-side and
 deterministically, which is also why the demo is reproducible.
+
+It's installable: open it in a browser and use "Add to Home Screen" / the
+install icon in the address bar, and it keeps working with no connection
+after that first visit — the manifest and the precaching service worker
+live entirely in [`vite.config.ts`](vite.config.ts) (`vite-plugin-pwa`), so
+there's no separate app to build or ship. Test the offline behaviour against
+`npm run preview`, never `npm run dev` — Vite's dev server doesn't run a
+service worker, so "does it work offline" can only ever be answered against
+the real build.
 
 ## Deploying
 
