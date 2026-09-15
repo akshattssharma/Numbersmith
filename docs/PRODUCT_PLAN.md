@@ -55,6 +55,9 @@ If this works, content scales it. If it does not, content cannot save it.
 - **Quest layer** — items grouped into a quest with a stated goal and an effort-driven
   meter, a designed win reserved for its last item, and a sitting that ends on purpose
   (1-3 quests, closing at a resolved goal rather than running until the child stops)
+- **Gather** — a real drag gesture for equal-groups problems; drop timing (filled at
+  once vs. one at a time) is logged as `Attempt.dragStrategy`, a diagnostic a typed
+  answer cannot produce, surfaced today as a parent insight
 - **Three worlds** reskinning one bundle/unbundle mechanic
 - **Companion** — bounded template bank with a gated optional model rephrase
 - **Parent product** — insight generator and a fixed question set

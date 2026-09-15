@@ -78,6 +78,27 @@ nav.tabs button[aria-selected="true"] { color: var(--accent); border-bottom-colo
 }
 .ones-grid { display: grid; grid-template-columns: repeat(5, 15px); gap: 4px; }
 
+/* --------------------------------------------------------------- gather */
+.gathercells { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+.gathercell {
+  position: relative; min-width: 96px; flex: 1 0 96px; padding: 10px 10px 34px;
+  border-radius: 10px; border: 2px dashed rgba(255,255,255,0.22);
+  transition: border-color 150ms ease, background 150ms ease;
+}
+.gathercell.hover { border-color: var(--accent); background: rgba(94,234,212,0.08); border-style: solid; }
+.gathercell-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.65; margin-bottom: 8px; }
+.gathercell-dots { display: flex; flex-wrap: wrap; gap: 4px; min-height: 15px; }
+.gathercell-minus {
+  position: absolute; bottom: 6px; right: 6px; padding: 2px 7px; font-size: 11px;
+}
+.gathersupply { display: flex; align-items: center; gap: 12px; }
+.gathertoken {
+  width: 34px; height: 34px; border-radius: 50%; cursor: grab; flex: none;
+  border: 1px solid rgba(255,255,255,0.35); box-shadow: 0 3px 10px rgba(0,0,0,0.35);
+  touch-action: none;
+}
+.gathertoken:active { cursor: grabbing; }
+
 .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; align-items: center; }
 
 button.btn {

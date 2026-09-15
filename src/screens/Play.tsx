@@ -1,8 +1,10 @@
 import { useRef, useState } from 'react';
 import { Avatar } from '../components/Avatar';
 import { BundleBoard } from '../components/BundleBoard';
+import { GatherBoard } from '../components/GatherBoard';
 import { Lumie, type LumieMood } from '../components/Lumie';
 import { companionLine } from '../engine/companion';
+import { classifyDragStrategy, type DropEvent } from '../engine/dragStrategy';
 import { Session, type Turn } from '../engine/session';
 import type { Diagnosis } from '../engine/types';
 import { WORLDS } from '../engine/worlds';
@@ -59,6 +61,9 @@ export function Play({
   // local to this mount on purpose. Reloading re-derives it from
   // session.sittingEnded (see App.tsx), so it never needs to be saved itself.
   const [resting, setResting] = useState(false);
+  // Timestamped drops on the Gather board, this item only — reset every turn,
+  // classified into a strategy signal only at submit time (see dragStrategy.ts).
+  const [drops, setDrops] = useState<DropEvent[]>([]);
   const started = useRef(Date.now());
 
   const p = turn.selection.problem;
@@ -74,6 +79,7 @@ export function Play({
     // A door ignored in favour of "Next →" instead of a pick otherwise
     // leaks: it would reappear, stale, next time an item is answered.
     setDoorOpen(false);
+    setDrops([]);
     started.current = Date.now();
     onTick();
   };
@@ -89,6 +95,7 @@ export function Play({
       latencyMs: Date.now() - started.current,
       hintsUsed: hints,
       churn,
+      dragStrategy: classifyDragStrategy(drops),
     });
     setFeedback({ line: res.line.text, d: res.diagnosis, correct: res.attempt.correct });
     if (res.attempt.correct) {
@@ -161,7 +168,16 @@ export function Play({
             </div>
 
             <div className="playboard">
-              {p.representation === 'manipulative' ? (
+              {p.representation === 'manipulative' && p.kind === 'groups' ? (
+                <GatherBoard
+                  key={p.id}
+                  world={world}
+                  a={p.a}
+                  b={p.b}
+                  onChange={(n) => { setEntry(n); setChurn((c) => c + 1); }}
+                  onDrop={(cellIndex) => setDrops((d) => [...d, { cellIndex, at: Date.now() }])}
+                />
+              ) : p.representation === 'manipulative' ? (
                 <BundleBoard
                   world={world}
                   target={p.kind === 'load' ? p.answer : null}

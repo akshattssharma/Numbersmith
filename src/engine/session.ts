@@ -303,7 +303,11 @@ export class Session {
     };
   }
 
-  submit(turn: Turn, given: number, meta: { latencyMs: number; hintsUsed?: number; churn?: number; abandoned?: boolean }): TurnResult {
+  submit(
+    turn: Turn,
+    given: number,
+    meta: { latencyMs: number; hintsUsed?: number; churn?: number; abandoned?: boolean; dragStrategy?: Attempt['dragStrategy'] },
+  ): TurnResult {
     const p = turn.selection.problem;
     // On a 'catch' item the child is asked whether the companion was right;
     // a correct catch means they entered the true answer, not the planted one.
@@ -321,6 +325,7 @@ export class Session {
       churn: meta.churn ?? 0,
       abandoned: meta.abandoned ?? false,
       at: Date.now(),
+      dragStrategy: meta.dragStrategy,
     };
 
     const diagnosis = diagnose(this.model, p, given, attempt);

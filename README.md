@@ -44,6 +44,7 @@ diagnosis itself, deliberately; see [Safety](#safety-is-an-architecture-not-a-fi
 | **Struggle controller** | PI controller with online bias correction, plus frustration and boredom overrides | [`struggle.ts`](src/engine/struggle.ts) |
 | **Selector** | Decides what happens next and explains itself in one sentence, every time | [`selector.ts`](src/engine/selector.ts) |
 | **Quest layer** | Wraps the item stream in a stated goal, a meter that fills on effort, and a designed win — so a sitting has a beginning, a middle and an end instead of running forever | [`quest.ts`](src/engine/quest.ts) |
+| **Gather** | A real drag gesture for equal-groups problems, not a typed number — and the way it's played (filled at once vs. one at a time) is a diagnostic signal a typed answer cannot produce | [`GatherBoard.tsx`](src/components/GatherBoard.tsx), [`dragStrategy.ts`](src/engine/dragStrategy.ts) |
 | **Parent insights** | Plain-language findings and an off-screen activity. No accuracy percentage anywhere | [`parentInsights.ts`](src/engine/parentInsights.ts) |
 | **Personalization** | The child's friends and favourite things woven into problems — gated by the learner model, with a control holdout to check it works | [`cast.ts`](src/engine/cast.ts), [`storyTemplates.ts`](src/engine/storyTemplates.ts) |
 | **Household** | Kid mode vs. parent mode, a local PIN gate, and more than one child on the same device — each with their own progress, cast and favourites | [`household.ts`](src/engine/household.ts) |
@@ -229,6 +230,32 @@ real boundary — fixed by gating it on lifetime history instead, which also
 means the existing "welcome back" companion lines (written for a returning
 child, previously unreachable because nothing ever reset) now actually fire.
 
+**13. A typed number cannot see *how* a child got there, and that gap doesn't
+close by adding more feedback — it closes by changing the input.** Every kind
+of problem reduced to the same verb: adjust a number until it matches,
+whether the underlying operation was composing, merging, removing or
+grouping. Equal-groups problems are where that costs the most, because the
+concept itself — three groups of five is not the same idea as fifteen —
+depends on grouping being something the child can actually *do*, not just
+read about in a sentence. The fix (`GatherBoard.tsx`, real drag physics via
+Framer Motion) replaces the typed number for this one kind with a drag: units
+dropped into group cells, no cap enforced on how many land in one, because
+overfilling a group *is* the interesting mistake, not a glitch to prevent.
+The more important find was that this unlocks a signal no typed surface can
+produce at all: the *timing* between drops distinguishes a child who fills a
+group in one fast, confident motion (already knows it holds this many) from
+one who places every item a deliberate beat apart (still counting to be
+sure). That distinction was completely invisible before — a correct "15" from
+either child looked identical. It's now a real field on the attempt
+(`Attempt.dragStrategy`), read only by the parent view as a plain-language
+finding, not folded into the existing latency-based strategy trait — mixing
+an unproven new signal into a controller that took ten other fixes to get
+right was a risk worth declining. Deliberately scoped to one verb, done
+properly, rather than three done as a shallow reskin of the same tap
+interaction: `load`/`combine`/`ship` still use the bundle board, which is
+already a real physical model (tens and ones you build and break open), not
+a placeholder waiting for the same treatment on principle.
+
 ---
 
 ## Safety is an architecture, not a filter
@@ -268,7 +295,7 @@ companion evaluates the work, never the child.
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 84 tests — engine behaviour, the divergence thesis, personalization safety, the quest/sitting shape
+npm test           # 94 tests — engine behaviour, the divergence thesis, personalization safety, the quest/sitting shape, the gather signal
 npm run build      # production build to dist/
 ```
 
