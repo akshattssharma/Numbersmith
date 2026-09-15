@@ -253,4 +253,22 @@ describe('the reward tiers: stars, world collection, mastery/ready transitions',
     expect(restored.stars).toBe(save.stars);
     expect(restored.collection).toEqual(save.collection);
   });
+
+  it('defaults soundOn to true, and a save/restore round trip carries an explicit false through', () => {
+    const onByDefault = new Session();
+    expect(onByDefault.soundOn).toBe(true);
+    expect(onByDefault.exportSave().soundOn).toBe(true);
+
+    const s = new Session();
+    s.soundOn = false;
+    const save = s.exportSave();
+    expect(save.soundOn).toBe(false);
+
+    const restored = new Session(
+      save.model, 555, save.profile, save.struggle,
+      save.index, save.quest, save.questNumber, save.sittingEnded,
+      save.stars, save.collection, save.soundOn,
+    );
+    expect(restored.soundOn).toBe(false);
+  });
 });

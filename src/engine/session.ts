@@ -81,6 +81,9 @@ export class Session {
   stars: number;
   /** one per completed quest, credited to whichever world it was played in */
   collection: Record<WorldId, number>;
+  /** whether the prompt, companion lines and hints are read aloud — a
+   *  parent/child preference, read by the screen, never by the engine itself */
+  soundOn: boolean;
   /** set when frustration crosses the safety threshold mid-quest, so the very
    *  next item resolves the quest early instead of grinding to its full length */
   private forcedQuestEnd = false;
@@ -108,6 +111,7 @@ export class Session {
     sittingEnded = false,
     stars = 0,
     collection?: Record<WorldId, number>,
+    soundOn = true,
   ) {
     this.model = model ?? createLearner('local', 'Player');
     this.profile = profile ?? defaultProfile();
@@ -120,6 +124,7 @@ export class Session {
     this.sittingEnded = sittingEnded;
     this.stars = stars;
     this.collection = collection ?? Object.fromEntries(WORLD_IDS.map((w) => [w, 0])) as Record<WorldId, number>;
+    this.soundOn = soundOn;
   }
 
   /**
@@ -153,12 +158,12 @@ export class Session {
   exportSave(): {
     model: LearnerModel; struggle: StruggleState; profile: PersonalProfile; index: number;
     quest: QuestState | null; questNumber: number; sittingEnded: boolean;
-    stars: number; collection: Record<WorldId, number>;
+    stars: number; collection: Record<WorldId, number>; soundOn: boolean;
   } {
     return {
       model: this.model, struggle: this.struggle, profile: this.profile, index: this.index,
       quest: this.quest, questNumber: this.questNumber, sittingEnded: this.sittingEnded,
-      stars: this.stars, collection: this.collection,
+      stars: this.stars, collection: this.collection, soundOn: this.soundOn,
     };
   }
 

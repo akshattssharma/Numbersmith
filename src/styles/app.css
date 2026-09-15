@@ -255,6 +255,11 @@ button.btn.tiny { font-size: 12px; padding: 5px 10px; }
   cursor: pointer; padding: 4px 2px; text-decoration: underline; text-underline-offset: 2px;
 }
 .grownups-link:hover { color: var(--ink); }
+.soundtoggle {
+  background: none; border: 0; cursor: pointer; font-size: 17px;
+  line-height: 1; padding: 4px 6px; opacity: 0.8;
+}
+.soundtoggle:hover { opacity: 1; }
 
 .stage.kid {
   position: relative; padding: 0; border-radius: var(--radius); overflow: hidden;

@@ -47,6 +47,9 @@ export interface ChildSave {
   /** one per completed quest, credited to whichever world it was played in —
    *  driven by effort (a quest concluding), never by correctness */
   collection: Record<WorldId, number>;
+  /** whether the prompt, companion lines and hints are read aloud —
+   *  a parent/child preference, not a pedagogy signal */
+  soundOn: boolean;
 }
 
 function emptyCollection(): Record<WorldId, number> {
@@ -86,7 +89,7 @@ export function loadHousehold(): Household {
       saveChildSave(id, {
         model: createLearner(id, name), struggle: initStruggle(), profile, index: 0,
         quest: null, questNumber: 0, sittingEnded: false,
-        stars: 0, collection: emptyCollection(),
+        stars: 0, collection: emptyCollection(), soundOn: true,
       });
       const h: Household = { pin: null, children: [meta], activeChildId: id };
       saveHousehold(h);
@@ -118,11 +121,13 @@ export function newChildSave(id: string, name: string): ChildSave {
     sittingEnded: false,
     stars: 0,
     collection: emptyCollection(),
+    soundOn: true,
   };
 }
 
-/** Old saves predate later fields (the quest layer, then stars/collection) —
- *  default whatever they never had rather than require a version bump. */
+/** Old saves predate later fields (the quest layer, then stars/collection,
+ *  then soundOn) — default whatever they never had rather than require a
+ *  version bump. */
 function withDefaults(raw: Partial<ChildSave>, fallback: ChildSave): ChildSave {
   return {
     model: raw.model ?? fallback.model,
@@ -134,6 +139,7 @@ function withDefaults(raw: Partial<ChildSave>, fallback: ChildSave): ChildSave {
     sittingEnded: raw.sittingEnded ?? false,
     stars: raw.stars ?? 0,
     collection: { ...emptyCollection(), ...raw.collection },
+    soundOn: raw.soundOn ?? true,
   };
 }
 

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Avatar } from '../components/Avatar';
 import { BundleBoard } from '../components/BundleBoard';
 import { GatherBoard } from '../components/GatherBoard';
@@ -10,6 +10,9 @@ import { CONCEPTS } from '../engine/conceptGraph';
 import { classifyDragStrategy, type DropEvent } from '../engine/dragStrategy';
 import { generateHint } from '../engine/hints';
 import { Session, type Turn } from '../engine/session';
+import {
+  celebrate as celebrateAudio, isSpeechSupported, setSpeechEnabled, speakSequence, stopSpeaking,
+} from '../engine/speech';
 import type { Diagnosis } from '../engine/types';
 import { WORLDS } from '../engine/worlds';
 import type { WorldId } from '../engine/types';
@@ -70,6 +73,12 @@ export function Play({
   const submitBtnRef = useRef<HTMLButtonElement>(null);
   const starChipRef = useRef<HTMLSpanElement>(null);
   const worldChipRef = useRef<HTMLSpanElement>(null);
+  const [soundOn, setSoundOn] = useState(session.soundOn);
+
+  useEffect(() => { setSpeechEnabled(soundOn); }, [soundOn]);
+  // Belt-and-suspenders: nothing should keep talking once this screen is
+  // gone (a parent-gate switch mid-sentence, for instance).
+  useEffect(() => () => stopSpeaking(), []);
   // Set once the child has explicitly settled on "that's enough for now" —
   // local to this mount on purpose. Reloading re-derives it from
   // session.sittingEnded (see App.tsx), so it never needs to be saved itself.
@@ -84,7 +93,19 @@ export function Play({
   // The engine already decided how much of the child's world this item can
   // carry. The screen renders that decision; it never makes it.
   const prompt = turn.rendered?.text ?? world.frame[p.kind](p);
+  // The exact text a child reads on screen — kept as one value so the
+  // audio never says something different from what's shown.
+  const spokenPrompt = p.kind === 'catch' && p.plantedAnswer !== undefined
+    ? `${prompt} They say the answer is ${p.plantedAnswer}.`
+    : prompt;
   const [doorOpen, setDoorOpen] = useState(false);
+
+  // Read the prompt, then Lumie's line, for every new item — cancelling
+  // whatever the previous item was still reading. Answering doesn't create
+  // a new `turn`, so this never re-fires just because feedback appeared.
+  useEffect(() => {
+    speakSequence([spokenPrompt, turn.line.text]);
+  }, [turn]);
 
   const reset = () => {
     const t = session.nextTurn();
@@ -118,8 +139,10 @@ export function Play({
       setStreak((s) => s + 1);
       setBurst(true);
       setTimeout(() => setBurst(false), 900);
+      celebrateAudio(res.line.text);
     } else {
       setStreak(0);
+      speakSequence([res.line.text]);
     }
 
     if (originRect) {
@@ -188,6 +211,22 @@ export function Play({
           </span>
           <span className={`chip flame ${streak >= 3 ? 'hot' : ''}`} title="answers in a row">🔥 {streak}</span>
         </div>
+        {isSpeechSupported() && (
+          <button
+            className="soundtoggle"
+            onClick={() => {
+              const next = !soundOn;
+              session.soundOn = next;
+              setSoundOn(next);
+              if (!next) stopSpeaking();
+              onTick();
+            }}
+            title={soundOn ? 'Turn sound off' : 'Turn sound on'}
+            aria-label={soundOn ? 'Mute' : 'Unmute'}
+          >
+            {soundOn ? '🔊' : '🔇'}
+          </button>
+        )}
         <button className="grownups-link" onClick={onExitToParent}>Grown-ups →</button>
       </div>
 
@@ -227,9 +266,7 @@ export function Play({
                 <Avatar characterId={turn.rendered.person.characterId} size={46} name={turn.rendered.person.name} ring />
               )}
               <p className="prompt" style={{ marginTop: turn.rendered?.person ? 2 : 0 }}>
-                {p.kind === 'catch' && p.plantedAnswer !== undefined
-                  ? `${prompt} They say the answer is ${p.plantedAnswer}.`
-                  : prompt}
+                {spokenPrompt}
               </p>
             </div>
 
@@ -292,7 +329,14 @@ export function Play({
                   <button ref={submitBtnRef} className="btn primary big" onClick={submit}>
                     {p.kind === 'catch' ? 'Fix it' : 'Done'}
                   </button>
-                  <button className="btn ghost" onClick={() => setHints((h) => h + 1)}>
+                  <button
+                    className="btn ghost"
+                    onClick={() => {
+                      const nextHints = hints + 1;
+                      setHints(nextHints);
+                      speakSequence([generateHint(p, world, nextHints >= 2 ? 2 : 1)]);
+                    }}
+                  >
                     Lumie, a clue?
                   </button>
                   {hints > 0 && (
@@ -309,7 +353,7 @@ export function Play({
                     {quest ? `, and you earned ${quest.goal.reward}.` : '.'}
                   </p>
                   <div className="controls">
-                    <button className="btn primary big" onClick={() => setResting(true)}>All done for now ✓</button>
+                    <button className="btn primary big" onClick={() => { stopSpeaking(); setResting(true); }}>All done for now ✓</button>
                     <button className="btn ghost" onClick={playMore}>Play a little more</button>
                   </div>
                 </div>
