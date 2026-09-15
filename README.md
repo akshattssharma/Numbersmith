@@ -47,6 +47,7 @@ diagnosis itself, deliberately; see [Safety](#safety-is-an-architecture-not-a-fi
 | **Quest layer** | Wraps the item stream in a stated goal, a meter that fills on effort, and a designed win — so a sitting has a beginning, a middle and an end instead of running forever | [`quest.ts`](src/engine/quest.ts) |
 | **Gather** | A real drag gesture for equal-groups problems, not a typed number — and the way it's played (filled at once vs. one at a time) is a diagnostic signal a typed answer cannot produce | [`GatherBoard.tsx`](src/components/GatherBoard.tsx), [`dragStrategy.ts`](src/engine/dragStrategy.ts) |
 | **Companion** | Lumie, an inline SVG with independently animated eyes (they track the pointer), a blink, and a mouth shape per mood — not a PNG swapped between a handful of static poses | [`Lumie.tsx`](src/components/Lumie.tsx) |
+| **Speech** | The prompt, Lumie's line and every hint read aloud on-device (no recording, no network) — the only workable choice once content is procedurally generated rather than fixed; a synthesized chime marks a correct answer, and sound is a persisted per-child toggle | [`speech.ts`](src/engine/speech.ts) |
 | **Reward tiers** | Three things that already existed in the model — a correct answer, a concluded quest, a concept crossing mastery — made visible: a lifetime star count, a per-world collection, and a kid-safe constellation of what's been learned. Every tier flies from where the child answered to where it lives, so the counters never feel disconnected from the play that earned them | [`session.ts`](src/engine/session.ts), [`Constellation.tsx`](src/components/Constellation.tsx), [`WorldCollection.tsx`](src/components/WorldCollection.tsx), [`RewardFlight.tsx`](src/components/RewardFlight.tsx), [`ProgressOverlay.tsx`](src/components/ProgressOverlay.tsx) |
 | **Parent insights** | Plain-language findings and an off-screen activity. No accuracy percentage anywhere | [`parentInsights.ts`](src/engine/parentInsights.ts) |
 | **Personalization** | The child's friends and favourite things woven into problems — gated by the learner model, with a control holdout to check it works | [`cast.ts`](src/engine/cast.ts), [`storyTemplates.ts`](src/engine/storyTemplates.ts) |
@@ -311,6 +312,28 @@ checker or a passing test, which is the same lesson finding 14 already drew
 about companion beats: a fixed suite only asks the questions it was written
 to ask.
 
+**16. Voice acting was never actually on the table, and not because of
+production budget.** The prompt and the companion line are both
+procedurally generated — a prompt's numbers change every item, and
+`companion.ts` alone has 15 lines x 4 tones per beat, deliberately built
+that way so nothing repeats. There is no fixed script a voice actor could
+ever read, in the same way there's no fixed set of personalized sentences
+to record. That makes on-device text-to-speech
+(`window.speechSynthesis`) the only architecturally sound choice, and a
+convenient one: no recording, no network call, no asset pipeline, which
+keeps the "nothing leaves the device" commitment intact exactly the way
+the optional LLM rephrase already does for text. The one thing genuinely
+absent — a celebratory sound for a correct answer — didn't need a sourced
+audio clip either: three sine-wave oscillators playing an ascending triad
+(`speech.ts`) is a full chime with no asset at all. The one bug this
+surfaced was pure React, not audio: `Play.tsx`'s per-turn speech effect
+fired twice on the very first item in dev mode, which looked exactly like
+a real double-speak bug until the same run against the production build
+(`vite build && vite preview`) showed it happening exactly once — a
+Strict Mode double-invoke, the same "mount, clean up, mount again" check
+React deliberately runs only in development, not a defect in the effect
+itself.
+
 ---
 
 ## Safety is an architecture, not a filter
@@ -350,7 +373,7 @@ companion evaluates the work, never the child.
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 118 tests — engine behaviour, the divergence thesis, personalization safety, the quest/sitting shape, the gather signal, companion variety, dynamic hints, kind variety, the reward tiers and their persistence
+npm test           # 123 tests — engine behaviour, the divergence thesis, personalization safety, the quest/sitting shape, the gather signal, companion variety, dynamic hints, kind variety, the reward tiers and their persistence, speech
 npm run build      # production build to dist/
 ```
 

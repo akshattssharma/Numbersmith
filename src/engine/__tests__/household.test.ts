@@ -145,6 +145,25 @@ describe('household — persistence and migration', () => {
     const save = loadChildSave('c_old', 'Riley');
     expect(save.stars).toBe(0);
     expect(save.collection).toEqual({ starship: 0, grove: 0, vault: 0 });
+    expect(save.soundOn).toBe(true);
+  });
+
+  it('a save from before soundOn existed defaults to sound on, not off', () => {
+    localStorage.setItem('numbersmith.child.c_presound.v1', JSON.stringify({
+      index: 3, quest: null, questNumber: 0, sittingEnded: false, stars: 2, collection: {},
+    }));
+
+    const save = loadChildSave('c_presound', 'Riley');
+    expect(save.soundOn).toBe(true);
+  });
+
+  it('an explicit soundOn: false in a save is respected, not overridden by the default', () => {
+    localStorage.setItem('numbersmith.child.c_muted.v1', JSON.stringify({
+      index: 3, quest: null, questNumber: 0, sittingEnded: false, stars: 2, collection: {}, soundOn: false,
+    }));
+
+    const save = loadChildSave('c_muted', 'Riley');
+    expect(save.soundOn).toBe(false);
   });
 
   it('a save with a partial collection still gets every world, not just the ones it had', () => {
