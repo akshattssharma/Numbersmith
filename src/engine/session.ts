@@ -3,6 +3,7 @@ import { companionLine, type Line } from './companion';
 import { chooseIntervention, logIntervention, type Intervention } from './interventions';
 import { createLearner, diagnose, recordAttempt, recordChallengeDoor, recordWorldEngagement } from './learnerModel';
 import { generate, makeRng } from './problemGen';
+import { advanceQuest, isLastQuestItem, startQuest, type QuestState } from './quest';
 import { selectNext, type Selection } from './selector';
 import { derivePolicy, initStruggle, nextDifficulty, observeOutcome, predictSuccess, type StruggleState } from './struggle';
 import type { Attempt, ConceptId, Diagnosis, LearnerModel, MisconceptionId, Problem, Representation, WorldId } from './types';
@@ -55,6 +56,17 @@ export class Session {
    */
   presentationRng: () => number;
   index = 0;
+  /** the current quest — a stated goal, a meter, a designed win at the end.
+   *  Null only before the very first non-calibration item is chosen. */
+  quest: QuestState | null = null;
+  questNumber: number;
+  /** true once this sitting has reached its own natural end (a quest
+   *  concluded AND shouldEnd() agrees) — the sitting still functions if the
+   *  child explicitly asks to keep going via keepGoing()/beginSitting(). */
+  sittingEnded: boolean;
+  /** set when frustration crosses the safety threshold mid-quest, so the very
+   *  next item resolves the quest early instead of grinding to its full length */
+  private forcedQuestEnd = false;
   /** running mean engagement, the baseline every context is scored against */
   private engagementMean = 0.7;
   private engagementN = 0;
@@ -74,6 +86,9 @@ export class Session {
     profile?: PersonalProfile,
     struggle?: StruggleState,
     index = 0,
+    quest: QuestState | null = null,
+    questNumber = 0,
+    sittingEnded = false,
   ) {
     this.model = model ?? createLearner('local', 'Player');
     this.profile = profile ?? defaultProfile();
@@ -81,6 +96,29 @@ export class Session {
     this.presentationRng = makeRng(seed ^ 0x5f3a);
     this.struggle = struggle ?? initStruggle();
     this.index = index;
+    this.quest = quest;
+    this.questNumber = questNumber;
+    this.sittingEnded = sittingEnded;
+  }
+
+  /**
+   * Start a fresh sitting: a clean item count and a brand-new first quest,
+   * as if the child had just sat down to play. What the model has actually
+   * learned — mastery, misconceptions, traits, the struggle controller's own
+   * bias correction — is untouched, because none of that describes "this
+   * sitting", it describes this child.
+   */
+  beginSitting(): void {
+    this.index = 0;
+    this.quest = null;
+    this.questNumber = 0;
+    this.sittingEnded = false;
+    this.forcedQuestEnd = false;
+  }
+
+  /** Explicit opt-in to keep playing after a sitting reached its natural end. */
+  keepGoing(): void {
+    this.sittingEnded = false;
   }
 
   /**
@@ -91,8 +129,14 @@ export class Session {
    * anything about the child, so re-seeding them fresh each load is a feature
    * (today's session does not open on yesterday's exact numbers).
    */
-  exportSave(): { model: LearnerModel; struggle: StruggleState; profile: PersonalProfile; index: number } {
-    return { model: this.model, struggle: this.struggle, profile: this.profile, index: this.index };
+  exportSave(): {
+    model: LearnerModel; struggle: StruggleState; profile: PersonalProfile; index: number;
+    quest: QuestState | null; questNumber: number; sittingEnded: boolean;
+  } {
+    return {
+      model: this.model, struggle: this.struggle, profile: this.profile, index: this.index,
+      quest: this.quest, questNumber: this.questNumber, sittingEnded: this.sittingEnded,
+    };
   }
 
   /**
@@ -109,11 +153,18 @@ export class Session {
     // makes that sentence longer and more interesting at exactly the moment we
     // are measuring how well they cope with sentences — so the probe would be
     // measuring the decoration. You do not personalize the instrument.
-    const cap = this.index < this.calibrationPlan().length
+    // Lifetime, not sitting-local — otherwise the first six items of every
+    // sitting (not just the true calibration ones) would get capped, and
+    // the sitting-scoped index resets on beginSitting() while a new session
+    // that has already been through calibration once must not repeat this.
+    const cap = this.model.history.length < this.calibrationPlan().length
       ? 'light' as const
       : this.model.policy.personalization;
     const intensity = intensityForSurface(cap, problem.representation, problem.kind);
-    return renderProblem(problem, this.profile, intensity, this.index, this.presentationRng);
+    // Lifetime index, not sitting-local: a favourite's "how recently was this
+    // used" has to mean something across sittings, not reset to "ages ago"
+    // (or go briefly negative) every time a new one begins.
+    return renderProblem(problem, this.profile, intensity, this.model.history.length, this.presentationRng);
   }
 
   /**
@@ -162,10 +213,14 @@ export class Session {
   }
 
   nextTurn(): Turn {
-    // The first six items are the calibration run. They look like the start of
-    // the game because they are the start of the game — the child is playing,
-    // and the measuring happens underneath.
-    const cal = this.calibrationTurn(this.index);
+    // The first six items EVER are the calibration run — gated on lifetime
+    // history, not on this sitting's own item count. Calibration must fire
+    // exactly once in a child's life, not once per sitting: gating it on the
+    // sitting-local index would replay the same six diagnostic items every
+    // time the child came back, which is not "the start of the game", it is
+    // a loop. They look like the start of the game because they are the
+    // start of the game, and the measuring happens underneath.
+    const cal = this.calibrationTurn(this.model.history.length);
     if (cal) return cal;
 
     const hasBug = Object.values(this.model.misconceptions).some((s) => s && s.status !== 'resolved');
@@ -189,6 +244,26 @@ export class Session {
 
     const recentRepairs = this.trace.slice(-6).filter((t) => t.reason === 'repair-misconception').length;
 
+    // A quest is always in flight once calibration is behind us: start the
+    // next one the moment the last one concluded, never leaving a gap where
+    // "what's next" has no answer beyond another bare item.
+    if (!this.quest || this.quest.concluded) {
+      this.questNumber += 1;
+      // Presentation-only choice (which flavour of goal, which id) — the
+      // dedicated stream, never the one that decides what is taught.
+      this.quest = startQuest(this.model, this.questNumber, this.presentationRng);
+    }
+
+    // The frustration safety valve resolves the quest right now, on a
+    // designed win, rather than grinding on to its original length. The
+    // meter still reads as complete — a quest measures effort, and stopping
+    // early is not a broken promise to a child who is struggling.
+    let questWin = isLastQuestItem(this.quest);
+    if (!questWin && this.model.traits.frustration > 0.85 && this.quest.itemsDone > 0) {
+      questWin = true;
+      this.forcedQuestEnd = true;
+    }
+
     const selection = selectNext(this.model, {
       rng: this.rng,
       difficulty: decision.difficulty,
@@ -197,14 +272,19 @@ export class Session {
       forceWin: decision.forceWin,
       allowCatch: true,
       recentRepairs,
+      questWin,
     });
 
     let intervention: Intervention | undefined;
     if (selection.reason === 'repair-misconception' && selection.targetBug) {
-      const iv = chooseIntervention(this.model, selection.targetBug, this.index);
+      // Lifetime index again: the intervention cooldown compares against
+      // interventionLog timestamps that live forever in the model, so the
+      // clock they're measured against has to as well — a sitting reset
+      // must not make every past intervention look like it just happened.
+      const iv = chooseIntervention(this.model, selection.targetBug, this.model.history.length);
       if (iv) {
         intervention = iv;
-        this.model = logIntervention(this.model, selection.targetBug, iv, this.index);
+        this.model = logIntervention(this.model, selection.targetBug, iv, this.model.history.length);
         this.pendingBug = selection.targetBug;
       }
     }
@@ -223,7 +303,11 @@ export class Session {
     };
   }
 
-  submit(turn: Turn, given: number, meta: { latencyMs: number; hintsUsed?: number; churn?: number; abandoned?: boolean }): TurnResult {
+  submit(
+    turn: Turn,
+    given: number,
+    meta: { latencyMs: number; hintsUsed?: number; churn?: number; abandoned?: boolean; dragStrategy?: Attempt['dragStrategy'] },
+  ): TurnResult {
     const p = turn.selection.problem;
     // On a 'catch' item the child is asked whether the companion was right;
     // a correct catch means they entered the true answer, not the planted one.
@@ -241,6 +325,7 @@ export class Session {
       churn: meta.churn ?? 0,
       abandoned: meta.abandoned ?? false,
       at: Date.now(),
+      dragStrategy: meta.dragStrategy,
     };
 
     const diagnosis = diagnose(this.model, p, given, attempt);
@@ -300,7 +385,9 @@ export class Session {
     this.engagementN += 1;
     this.engagementMean += (score - this.engagementMean) / Math.min(this.engagementN, 30);
     if (ids.length) {
-      this.profile = recordEngagement(this.profile, ids, score, this.engagementMean, this.index);
+      // Same lifetime clock as the read side in render(), so "used recently"
+      // survives a new sitting starting rather than reading as ages-old.
+      this.profile = recordEngagement(this.profile, ids, score, this.engagementMean, this.model.history.length);
     }
     this.contextTrace.push({
       index: this.index,
@@ -310,6 +397,17 @@ export class Session {
     });
 
     this.index += 1;
+
+    // Advance the quest on the item that was just answered — never on
+    // whether it was right. This is also where a sitting is allowed to end:
+    // only right here, at a quest boundary, so it always closes on a
+    // resolved goal and never mid-way through one.
+    if (this.quest) {
+      this.quest = advanceQuest(this.quest, correct, { forceConclude: this.forcedQuestEnd });
+      this.forcedQuestEnd = false;
+      if (this.quest.concluded && this.shouldEnd()) this.sittingEnded = true;
+    }
+
     return { attempt, diagnosis, model: this.model, line };
   }
 

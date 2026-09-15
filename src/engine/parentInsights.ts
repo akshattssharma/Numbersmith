@@ -92,6 +92,31 @@ export function generateInsights(m: LearnerModel): Insight[] {
     });
   }
 
+  /* --- how they build a group, not just whether they got it right -------
+     A typed answer cannot show this — it comes only from the Gather board,
+     where filling a group is a physical act you can do quickly (because you
+     already know it holds this many) or one at a time (because each unit is
+     still a decision). Real behaviour, not a score, and exactly the kind of
+     thing this file exists to say instead of an accuracy percentage. */
+  const groupPlay = m.history.filter((h) => h.dragStrategy).slice(-10);
+  if (groupPlay.length >= 3) {
+    const grouped = groupPlay.filter((h) => h.dragStrategy === 'grouped').length;
+    const counted = groupPlay.filter((h) => h.dragStrategy === 'counted').length;
+    if (grouped >= groupPlay.length * 0.6) {
+      out.push({
+        kind: 'strength',
+        headline: `${name} thinks in groups, not just in ones.`,
+        body: `Building equal-groups problems by hand, ${name} drops several items into a group at once rather than placing them one at a time — a sign multiplication is starting to feel like groups, not repeated counting.`,
+      });
+    } else if (counted >= groupPlay.length * 0.6) {
+      out.push({
+        kind: 'watch',
+        headline: `${name} is still counting groups one item at a time.`,
+        body: `On equal-groups problems, ${name} places items one by one rather than filling a group in one go. Completely normal at this stage, and worth knowing because it usually resolves once skip-counting feels automatic.`,
+      });
+    }
+  }
+
   /* --- timed pressure, if we turned it off ------------------------------ */
   if (!m.policy.timePressure && m.traits.frustration > 0.4) {
     out.push({

@@ -97,6 +97,13 @@ export interface Attempt {
   churn: number;
   abandoned: boolean;
   at: number;
+  /**
+   * How an equal-groups item was physically built, when it was built at all
+   * (the Gather board, not typed) — see dragStrategy.ts. Undefined for every
+   * other surface and every older, pre-Gather attempt; absence is not a
+   * signal, it just means this evidence was never collected for this item.
+   */
+  dragStrategy?: 'grouped' | 'counted' | 'mixed';
 }
 
 export interface Diagnosis {

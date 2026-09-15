@@ -30,7 +30,8 @@ export type Reason =
   | 'probe-representation'
   | 'catch-the-mistake'
   | 'consolidate'
-  | 'confidence-win';
+  | 'confidence-win'
+  | 'quest-win';
 
 export interface Selection {
   problem: Problem;
@@ -55,6 +56,8 @@ export function selectNext(
     allowCatch?: boolean;
     /** how many of the recent items were already repair items */
     recentRepairs?: number;
+    /** this is the last item of the current quest — resolve it, don't diagnose with it */
+    questWin?: boolean;
   },
 ): Selection {
   const { rng, now, itemIndex } = opts;
@@ -89,6 +92,28 @@ export function selectNext(
       concept: easy,
       rationale:
         'Two misses in a row. Serving something well inside reach on their strongest surface — the point is to restore footing, not to teach.',
+    };
+  }
+
+  /* ------- 0.5 quest resolution: the designed win at a quest's end -------
+     A quest that can end in genuine failure is not a quest, it is another
+     diagnostic item with narrative dressing on it. So the last item of every
+     quest is reserved and pitched to land: a real cost in diagnostic power
+     (this item was not chosen to teach or to test anything), paid for an
+     ending that actually resolves. It still outranks the emotional-rescue
+     win above only in the sense that both bypass ordinary selection — this
+     one takes the concept the child is already strongest at and asks for it
+     at a difficulty tuned for a high, not guaranteed, chance of success, so
+     it reads as earned rather than free. */
+  if (opts.questWin) {
+    const concept = strongestConcept(m);
+    const rep = bestRepresentation(m);
+    const difficulty = questWinDifficulty(mastery(m, concept));
+    return {
+      problem: generate({ concept, difficulty, representation: rep, rng }),
+      reason: 'quest-win',
+      concept,
+      rationale: `Last item of the quest — reserved as a designed win, pitched for roughly ${(expectedSuccess(mastery(m, concept), difficulty) * 100).toFixed(0)}% success on their strongest concept. Deliberately not the most informative item this session could serve.`,
     };
   }
 
@@ -287,4 +312,19 @@ export function unlockedFrontier(m: LearnerModel): ConceptId[] {
 
 export function currentRepresentation(m: LearnerModel, sel: Selection): Representation {
   return sel.problem.representation;
+}
+
+/**
+ * The difficulty that gives a child of this mastery roughly `target` odds of
+ * success, inverting the same logistic `expectedSuccess` uses. A quest's
+ * designed win is deliberately not the absolute floor (0.05, the panic-button
+ * difficulty the confidence-win rescue reaches for) — a win that took no
+ * effort at all doesn't feel like one. Clamped so a child with very low
+ * mastery on their own best concept still gets something winnable, and a
+ * child near-mastered on it isn't handed something trivial.
+ */
+export function questWinDifficulty(pKnow: number, target = 0.88): number {
+  const logit = Math.log(target / (1 - target));
+  const d = 0.5 + ((pKnow - 0.5) * 6 - logit) / 5;
+  return Math.max(0.05, Math.min(0.92, d));
 }

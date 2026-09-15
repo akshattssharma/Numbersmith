@@ -13,6 +13,7 @@
     "sim": "tsx scripts/divergence.ts"
   },
   "dependencies": {
+    "framer-motion": "^13.3.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
