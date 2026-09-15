@@ -42,6 +42,7 @@ export default function App() {
     const session = new Session(
       save.model, Date.now() & 0xffff, save.profile, save.struggle,
       save.index, save.quest, save.questNumber, save.sittingEnded,
+      save.stars, save.collection,
     );
     // Their last sitting already reached its own end — opening the app again
     // is the next visit, so it starts a fresh one rather than resuming a

@@ -1,7 +1,8 @@
 import { engagementScore, recordEngagement, defaultProfile, type PersonalProfile } from './cast';
 import { companionLine, type Beat, type Line } from './companion';
 import { chooseIntervention, logIntervention, type Intervention } from './interventions';
-import { createLearner, diagnose, recordAttempt, recordChallengeDoor, recordWorldEngagement } from './learnerModel';
+import { createLearner, diagnose, isReady, mastery, recordAttempt, recordChallengeDoor, recordWorldEngagement } from './learnerModel';
+import { unlockedBy } from './conceptGraph';
 import { generate, makeRng } from './problemGen';
 import { advanceQuest, isLastQuestItem, startQuest, type QuestState } from './quest';
 import { selectNext, type Selection } from './selector';
@@ -38,6 +39,17 @@ export interface TurnResult {
   diagnosis: Diagnosis;
   model: LearnerModel;
   line: Line;
+  /** this attempt just carried this concept's mastery past the threshold —
+   *  the rare, real event the constellation's biggest celebration is for */
+  newlyMastered?: ConceptId;
+  /** concepts that only just became ready as a side effect of this attempt
+   *  (their blocking prerequisite crossed its own threshold) */
+  newlyReady: ConceptId[];
+  /** 1 if this answer added to the lifetime star total, else 0 */
+  starsEarned: 0 | 1;
+  /** set only on the item that concluded a quest, naming which world's
+   *  collection just grew */
+  collectionGained?: WorldId;
 }
 
 export class Session {
@@ -64,6 +76,11 @@ export class Session {
    *  concluded AND shouldEnd() agrees) — the sitting still functions if the
    *  child explicitly asks to keep going via keepGoing()/beginSitting(). */
   sittingEnded: boolean;
+  /** lifetime total, one per correct answer — never resets, unlike the old
+   *  in-memory kidbar count it replaces */
+  stars: number;
+  /** one per completed quest, credited to whichever world it was played in */
+  collection: Record<WorldId, number>;
   /** set when frustration crosses the safety threshold mid-quest, so the very
    *  next item resolves the quest early instead of grinding to its full length */
   private forcedQuestEnd = false;
@@ -89,6 +106,8 @@ export class Session {
     quest: QuestState | null = null,
     questNumber = 0,
     sittingEnded = false,
+    stars = 0,
+    collection?: Record<WorldId, number>,
   ) {
     this.model = model ?? createLearner('local', 'Player');
     this.profile = profile ?? defaultProfile();
@@ -99,6 +118,8 @@ export class Session {
     this.quest = quest;
     this.questNumber = questNumber;
     this.sittingEnded = sittingEnded;
+    this.stars = stars;
+    this.collection = collection ?? Object.fromEntries(WORLD_IDS.map((w) => [w, 0])) as Record<WorldId, number>;
   }
 
   /**
@@ -132,10 +153,12 @@ export class Session {
   exportSave(): {
     model: LearnerModel; struggle: StruggleState; profile: PersonalProfile; index: number;
     quest: QuestState | null; questNumber: number; sittingEnded: boolean;
+    stars: number; collection: Record<WorldId, number>;
   } {
     return {
       model: this.model, struggle: this.struggle, profile: this.profile, index: this.index,
       quest: this.quest, questNumber: this.questNumber, sittingEnded: this.sittingEnded,
+      stars: this.stars, collection: this.collection,
     };
   }
 
@@ -334,8 +357,20 @@ export class Session {
       dragStrategy: meta.dragStrategy,
     };
 
+    // Snapshot what "before" looks like for exactly the two things that can
+    // change as a result of this one attempt: this concept's own mastery,
+    // and whether any concept that lists it as a prerequisite just became
+    // reachable. Comparing against "after" a few lines down is what turns
+    // "the model updated" into an actual, nameable event.
+    const beforeMastery = mastery(this.model, p.concept);
+    const dependents = unlockedBy(p.concept);
+    const readyBefore = new Set(dependents.filter((c) => isReady(this.model, c)));
+
     const diagnosis = diagnose(this.model, p, given, attempt);
     this.model = recordAttempt(this.model, p, attempt, diagnosis);
+
+    const newlyMastered = beforeMastery < 0.85 && mastery(this.model, p.concept) >= 0.85 ? p.concept : undefined;
+    const newlyReady = dependents.filter((c) => !readyBefore.has(c) && isReady(this.model, c));
 
     // Close the control loop. Without this the controller never finds out that
     // its own success model is optimistic, and quietly parks the child well
@@ -405,17 +440,33 @@ export class Session {
 
     this.index += 1;
 
+    // The star total is the item-tier currency: one per correct answer,
+    // lifetime, never reset. Separate from the quest meter (which fills on
+    // effort regardless of correctness) — this one tracks correctness on
+    // purpose, since it's the tier a typed answer's own rightness pays into.
+    if (correct) this.stars += 1;
+
     // Advance the quest on the item that was just answered — never on
     // whether it was right. This is also where a sitting is allowed to end:
     // only right here, at a quest boundary, so it always closes on a
     // resolved goal and never mid-way through one.
+    let collectionGained: WorldId | undefined;
     if (this.quest) {
+      const wasConcluded = this.quest.concluded;
       this.quest = advanceQuest(this.quest, correct, { forceConclude: this.forcedQuestEnd });
       this.forcedQuestEnd = false;
+      if (!wasConcluded && this.quest.concluded) {
+        const w = this.quest.goal.worldId;
+        this.collection = { ...this.collection, [w]: this.collection[w] + 1 };
+        collectionGained = w;
+      }
       if (this.quest.concluded && this.shouldEnd()) this.sittingEnded = true;
     }
 
-    return { attempt, diagnosis, model: this.model, line };
+    return {
+      attempt, diagnosis, model: this.model, line,
+      newlyMastered, newlyReady, starsEarned: correct ? 1 : 0, collectionGained,
+    };
   }
 
   answerChallengeDoor(tookHarder: boolean) {

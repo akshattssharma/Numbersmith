@@ -3,6 +3,10 @@ import { Avatar } from '../components/Avatar';
 import { BundleBoard } from '../components/BundleBoard';
 import { GatherBoard } from '../components/GatherBoard';
 import { Lumie, type LumieMood } from '../components/Lumie';
+import { ProgressOverlay } from '../components/ProgressOverlay';
+import { RewardFlight } from '../components/RewardFlight';
+import { CHIP_ICON } from '../components/WorldCollection';
+import { CONCEPTS } from '../engine/conceptGraph';
 import { classifyDragStrategy, type DropEvent } from '../engine/dragStrategy';
 import { generateHint } from '../engine/hints';
 import { Session, type Turn } from '../engine/session';
@@ -54,9 +58,18 @@ export function Play({
   const [feedback, setFeedback] = useState<{ line: string; d: Diagnosis; correct: boolean } | null>(null);
   const [hints, setHints] = useState(0);
   const [churn, setChurn] = useState(0);
-  const [stars, setStars] = useState(0);
   const [streak, setStreak] = useState(0);
   const [burst, setBurst] = useState(false);
+  const [celebrate, setCelebrate] = useState(false);
+  const [showProgress, setShowProgress] = useState(false);
+  const [masteryBanner, setMasteryBanner] = useState<string | null>(null);
+  const [flights, setFlights] = useState<
+    { id: number; from: { x: number; y: number }; to: { x: number; y: number }; icon: string; big?: boolean }[]
+  >([]);
+  const flightId = useRef(0);
+  const submitBtnRef = useRef<HTMLButtonElement>(null);
+  const starChipRef = useRef<HTMLSpanElement>(null);
+  const worldChipRef = useRef<HTMLSpanElement>(null);
   // Set once the child has explicitly settled on "that's enough for now" —
   // local to this mount on purpose. Reloading re-derives it from
   // session.sittingEnded (see App.tsx), so it never needs to be saved itself.
@@ -91,6 +104,9 @@ export function Play({
   };
 
   const submit = () => {
+    // Captured before session.submit() re-renders the controls away — the
+    // "Done" button is the only stable launch point a flight can start from.
+    const originRect = submitBtnRef.current?.getBoundingClientRect();
     const res = session.submit(turn, entry, {
       latencyMs: Date.now() - started.current,
       hintsUsed: hints,
@@ -99,19 +115,47 @@ export function Play({
     });
     setFeedback({ line: res.line.text, d: res.diagnosis, correct: res.attempt.correct });
     if (res.attempt.correct) {
-      setStars((s) => s + 1);
       setStreak((s) => s + 1);
       setBurst(true);
       setTimeout(() => setBurst(false), 900);
     } else {
       setStreak(0);
     }
+
+    if (originRect) {
+      const from = { x: originRect.left + originRect.width / 2, y: originRect.top + originRect.height / 2 };
+      if (res.starsEarned) {
+        const r = starChipRef.current?.getBoundingClientRect();
+        if (r) {
+          const to = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+          setFlights((f) => [...f, { id: flightId.current++, from, to, icon: '⭐' }]);
+        }
+      }
+      if (res.collectionGained) {
+        const w = res.collectionGained;
+        const r = worldChipRef.current?.getBoundingClientRect();
+        if (r) {
+          const to = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+          setFlights((f) => [...f, { id: flightId.current++, from, to, icon: CHIP_ICON[w], big: true }]);
+        }
+      }
+    }
+    if (res.newlyMastered) {
+      const label = CONCEPTS[res.newlyMastered].label;
+      setMasteryBanner(label);
+      setTimeout(() => setMasteryBanner((m) => (m === label ? null : m)), 3200);
+    }
+    if (res.collectionGained || res.newlyMastered) {
+      setCelebrate(true);
+      setTimeout(() => setCelebrate(false), 1400);
+    }
+
     if (turn.challengeDoorOffered && !res.attempt.correct) setDoorOpen(true);
     onTick();
   };
 
   const answered = feedback !== null;
-  const mood: LumieMood = answered ? (feedback!.correct ? 'happy' : 'gentle') : hints > 0 ? 'thinking' : 'idle';
+  const mood: LumieMood = celebrate ? 'celebrating' : answered ? (feedback!.correct ? 'happy' : 'gentle') : hints > 0 ? 'thinking' : 'idle';
   const quest = session.quest;
   const questJustWon = turn.selection.reason === 'quest-win' && !answered;
 
@@ -122,7 +166,26 @@ export function Play({
           <span className="kidbar-name">{childName ? `Hi ${childName}!` : world.name}</span>
         </div>
         <div className="kidbar-stats">
-          <span className="chip star" title="stars earned">⭐ {stars}</span>
+          <span
+            ref={starChipRef}
+            className="chip star"
+            title="stars earned — tap to see your progress"
+            onClick={() => setShowProgress(true)}
+            role="button"
+            tabIndex={0}
+          >
+            ⭐ {session.stars}
+          </span>
+          <span
+            ref={worldChipRef}
+            className="chip world"
+            title={`your ${world.name} collection — tap to see your progress`}
+            onClick={() => setShowProgress(true)}
+            role="button"
+            tabIndex={0}
+          >
+            {CHIP_ICON[world.id]} {session.collection[world.id]}
+          </span>
           <span className={`chip flame ${streak >= 3 ? 'hot' : ''}`} title="answers in a row">🔥 {streak}</span>
         </div>
         <button className="grownups-link" onClick={onExitToParent}>Grown-ups →</button>
@@ -137,7 +200,7 @@ export function Play({
         {resting ? (
           <div className="stage-content resting" style={{ color: world.palette.ink }}>
             <Lumie mood="idle" size={72} />
-            <p className="prompt" style={{ marginTop: 14 }}>See you next time! You earned {stars} star{stars === 1 ? '' : 's'} today.</p>
+            <p className="prompt" style={{ marginTop: 14 }}>See you next time! You have ⭐ {session.stars} star{session.stars === 1 ? '' : 's'} so far.</p>
           </div>
         ) : (
           <div className="stage-content" style={{ color: world.palette.ink }}>
@@ -226,7 +289,7 @@ export function Play({
             <div className="controls">
               {!answered ? (
                 <>
-                  <button className="btn primary big" onClick={submit}>
+                  <button ref={submitBtnRef} className="btn primary big" onClick={submit}>
                     {p.kind === 'catch' ? 'Fix it' : 'Done'}
                   </button>
                   <button className="btn ghost" onClick={() => setHints((h) => h + 1)}>
@@ -240,7 +303,7 @@ export function Play({
                 </>
               ) : session.sittingEnded ? (
                 <div className="sittingcard">
-                  <b>Sitting complete! ⭐ {stars}</b>
+                  <b>Sitting complete! ⭐ {session.stars} so far</b>
                   <p className="small" style={{ opacity: 0.85 }}>
                     {session.questNumber} quest{session.questNumber === 1 ? '' : 's'} done today
                     {quest ? `, and you earned ${quest.goal.reward}.` : '.'}
@@ -275,6 +338,28 @@ export function Play({
           </div>
         )}
       </div>
+
+      {flights.map((f) => (
+        <RewardFlight
+          key={f.id}
+          from={f.from}
+          to={f.to}
+          icon={f.icon}
+          big={f.big}
+          onDone={() => setFlights((cur) => cur.filter((x) => x.id !== f.id))}
+        />
+      ))}
+
+      {masteryBanner && (
+        <div className="masterybanner">
+          <b>New skill unlocked!</b>
+          <p>{masteryBanner}</p>
+        </div>
+      )}
+
+      {showProgress && (
+        <ProgressOverlay model={session.model} collection={session.collection} onClose={() => setShowProgress(false)} />
+      )}
     </div>
   );
 }

@@ -46,6 +46,8 @@ diagnosis itself, deliberately; see [Safety](#safety-is-an-architecture-not-a-fi
 | **Hints** | Generated from the actual problem on screen — its operands, its regrouping state — and made more specific on a second ask, never the same fixed sentence twice | [`hints.ts`](src/engine/hints.ts) |
 | **Quest layer** | Wraps the item stream in a stated goal, a meter that fills on effort, and a designed win — so a sitting has a beginning, a middle and an end instead of running forever | [`quest.ts`](src/engine/quest.ts) |
 | **Gather** | A real drag gesture for equal-groups problems, not a typed number — and the way it's played (filled at once vs. one at a time) is a diagnostic signal a typed answer cannot produce | [`GatherBoard.tsx`](src/components/GatherBoard.tsx), [`dragStrategy.ts`](src/engine/dragStrategy.ts) |
+| **Companion** | Lumie, an inline SVG with independently animated eyes (they track the pointer), a blink, and a mouth shape per mood — not a PNG swapped between a handful of static poses | [`Lumie.tsx`](src/components/Lumie.tsx) |
+| **Reward tiers** | Three things that already existed in the model — a correct answer, a concluded quest, a concept crossing mastery — made visible: a lifetime star count, a per-world collection, and a kid-safe constellation of what's been learned. Every tier flies from where the child answered to where it lives, so the counters never feel disconnected from the play that earned them | [`session.ts`](src/engine/session.ts), [`Constellation.tsx`](src/components/Constellation.tsx), [`WorldCollection.tsx`](src/components/WorldCollection.tsx), [`RewardFlight.tsx`](src/components/RewardFlight.tsx), [`ProgressOverlay.tsx`](src/components/ProgressOverlay.tsx) |
 | **Parent insights** | Plain-language findings and an off-screen activity. No accuracy percentage anywhere | [`parentInsights.ts`](src/engine/parentInsights.ts) |
 | **Personalization** | The child's friends and favourite things woven into problems — gated by the learner model, with a control holdout to check it works | [`cast.ts`](src/engine/cast.ts), [`storyTemplates.ts`](src/engine/storyTemplates.ts) |
 | **Household** | Kid mode vs. parent mode, a local PIN gate, and more than one child on the same device — each with their own progress, cast and favourites | [`household.ts`](src/engine/household.ts) |
@@ -285,6 +287,30 @@ hint, it only reads like one until a child asks twice — replaced with
 of the item in front of the child, and made progressively more concrete on
 a second ask without ever stating the final answer outright.
 
+**15. The engine already produced every signal a reward system needs — the
+gap was that none of it ever reached the screen.** A correct answer, a
+concluded quest, a concept crossing its mastery threshold: all three already
+existed as facts inside the learner model, computed and then discarded every
+turn. Nothing new had to be invented to make progress visible; `session.ts`
+just had to notice the three transitions it was already producing (comparing
+mastery before/after an attempt, and the quest's `concluded` flag before/after
+`advanceQuest`) and hand them out on `TurnResult` — `starsEarned`,
+`collectionGained`, `newlyMastered`. The two real bugs were both in Framer
+Motion, not the pedagogy. First: animating an SVG geometry attribute directly
+(`animate={{ r: [15, 19, 15] }}` on a `<circle>`) throws a console error on
+every frame, because Framer Motion's declarative array syntax is written for
+transforms, not raw attributes — the fix animates `scale` instead, with an
+explicit `transformOrigin` set to the circle's own centre (SVG's default
+origin is the viewport corner, so without it the node swells from the wrong
+point). Second, a design bug, not a code one: the companion's "thinking" and
+"gentle" moods were both a downward-curving mouth, and read as the same
+sympathetic frown until it was compared side by side against the four other
+moods — curiosity and sympathy need visibly different shapes, so "thinking"
+became a small "o" instead. Both were caught by looking, not by a type
+checker or a passing test, which is the same lesson finding 14 already drew
+about companion beats: a fixed suite only asks the questions it was written
+to ask.
+
 ---
 
 ## Safety is an architecture, not a filter
@@ -324,7 +350,7 @@ companion evaluates the work, never the child.
 ```bash
 npm install
 npm run dev        # http://localhost:5173
-npm test           # 110 tests — engine behaviour, the divergence thesis, personalization safety, the quest/sitting shape, the gather signal, companion variety, dynamic hints, kind variety
+npm test           # 118 tests — engine behaviour, the divergence thesis, personalization safety, the quest/sitting shape, the gather signal, companion variety, dynamic hints, kind variety, the reward tiers and their persistence
 npm run build      # production build to dist/
 ```
 

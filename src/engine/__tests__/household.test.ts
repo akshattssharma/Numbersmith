@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  addChild, checkPin, emptyHousehold, loadHousehold, removeChild,
+  addChild, checkPin, emptyHousehold, loadChildSave, loadHousehold, removeChild,
   setPin, switchActiveChild, type Household,
 } from '../household';
 
@@ -134,5 +134,27 @@ describe('household — persistence and migration', () => {
     const reloaded = loadHousehold();
     expect(reloaded.children).toHaveLength(1);
     expect(reloaded.pin).toBe('1234');
+  });
+
+  it('a save from before stars/collection existed loads with both defaulted, not missing', () => {
+    // A real pre-point-3/4/5 save: no stars field, no collection field at all.
+    localStorage.setItem('numbersmith.child.c_old.v1', JSON.stringify({
+      index: 12, quest: null, questNumber: 2, sittingEnded: false,
+    }));
+
+    const save = loadChildSave('c_old', 'Riley');
+    expect(save.stars).toBe(0);
+    expect(save.collection).toEqual({ starship: 0, grove: 0, vault: 0 });
+  });
+
+  it('a save with a partial collection still gets every world, not just the ones it had', () => {
+    localStorage.setItem('numbersmith.child.c_partial.v1', JSON.stringify({
+      index: 5, quest: null, questNumber: 1, sittingEnded: false,
+      stars: 7, collection: { starship: 3 },
+    }));
+
+    const save = loadChildSave('c_partial', 'Riley');
+    expect(save.stars).toBe(7);
+    expect(save.collection).toEqual({ starship: 3, grove: 0, vault: 0 });
   });
 });
