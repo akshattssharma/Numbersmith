@@ -248,6 +248,8 @@ button.btn.tiny { font-size: 12px; padding: 5px 10px; }
   background: var(--panel-2); border: 1px solid var(--line);
 }
 .chip.flame.hot { background: rgba(251,191,36,0.14); border-color: rgba(251,191,36,0.4); }
+.chip.star, .chip.world { cursor: pointer; }
+.chip.star:hover, .chip.world:hover { background: var(--panel); border-color: var(--accent); }
 .grownups-link {
   background: none; border: 0; color: var(--muted); font-size: 11.5px;
   cursor: pointer; padding: 4px 2px; text-decoration: underline; text-underline-offset: 2px;
@@ -316,31 +318,10 @@ button.btn.big { font-size: 16px; padding: 12px 22px; border-radius: 12px; }
 }
 
 /* -------------------------------------------------------------------- Lumie */
-.lumie { position: relative; flex: none; }
-.lumie img { width: 100%; height: 100%; object-fit: contain; display: block; filter: drop-shadow(0 3px 10px rgba(94,234,212,0.35)); }
-
-@keyframes lumieFloat {
-  0%, 100% { transform: translateY(0) rotate(-2deg); }
-  50% { transform: translateY(-6px) rotate(2deg); }
-}
-@keyframes lumieHappy {
-  0%, 100% { transform: translateY(0) scale(1) rotate(0deg); }
-  25% { transform: translateY(-9px) scale(1.08) rotate(-6deg); }
-  50% { transform: translateY(0) scale(1) rotate(0deg); }
-  75% { transform: translateY(-9px) scale(1.08) rotate(6deg); }
-}
-@keyframes lumieGentle {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(2px) rotate(-4deg); }
-}
-@keyframes lumieThink {
-  0%, 100% { transform: translateY(0) rotate(-3deg); }
-  50% { transform: translateY(-3px) rotate(3deg); }
-}
-.lumie-idle img { animation: lumieFloat 3.2s ease-in-out infinite; }
-.lumie-happy img { animation: lumieHappy 700ms ease-in-out 2; }
-.lumie-gentle img { animation: lumieGentle 1.6s ease-in-out infinite; opacity: 0.92; }
-.lumie-thinking img { animation: lumieThink 900ms ease-in-out infinite; }
+/* Motion itself now lives in Lumie.tsx (Framer Motion, driven by the body/
+   eyes/mouth being independent SVG parts) rather than CSS keyframes on a
+   single flat image — this file only positions the sparkle overlay. */
+.lumie { position: relative; flex: none; filter: drop-shadow(0 3px 10px rgba(94,234,212,0.35)); }
 
 @keyframes sparkFly {
   0% { transform: translate(0, 0) scale(0.4) rotate(0deg); opacity: 0; }
@@ -354,6 +335,7 @@ button.btn.big { font-size: 16px; padding: 12px 22px; border-radius: 12px; }
 .lumie-spark.s1 { top: 6px; left: 4px; --dx: -18px; --dy: -22px; }
 .lumie-spark.s2 { top: 2px; right: 2px; --dx: 20px; --dy: -18px; animation-delay: 80ms; }
 .lumie-spark.s3 { bottom: 4px; right: 10px; --dx: 14px; --dy: 16px; animation-delay: 150ms; }
+.lumie-spark.s4 { top: 40%; left: -6px; --dx: -22px; --dy: 10px; animation-delay: 220ms; }
 
 /* -------------------------------------------------------------- parent gate */
 .gatecard { max-width: 340px; margin: 40px auto; text-align: center; }
@@ -376,6 +358,61 @@ button.btn.big { font-size: 16px; padding: 12px 22px; border-radius: 12px; }
 .keypad .key:hover { border-color: var(--muted); }
 .keypad .key.ghost { font-size: 12px; background: transparent; }
 
-/* --------------------------------------------------------------------- misc */
+/* --------------------------------------------------------------- misc */
 .savepill { opacity: 0; transition: opacity 300ms ease; }
 .savepill.show { opacity: 1; }
+
+/* ----------------------------------------------------------- constellation */
+.constellation-wrap { position: relative; }
+.constellation-svg { width: 100%; height: auto; display: block; }
+.constellation-edge { stroke: rgba(255,255,255,0.16); stroke-width: 1.5; }
+.constellation-node { cursor: pointer; }
+.constellation-star { fill: rgba(255,255,255,0.45); stroke: rgba(255,255,255,0.6); stroke-width: 1; }
+.constellation-star.mastered { fill: #ffe27a; stroke: #fff3c4; }
+.constellation-halo { fill: none; stroke: #ffe27a; stroke-width: 2; }
+.constellation-tip {
+  position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%);
+  background: rgba(10,14,24,0.92); border: 1px solid var(--line); border-radius: 12px;
+  padding: 12px 16px; max-width: 260px; text-align: center; cursor: pointer;
+}
+.constellation-tip b { display: block; font-size: 14px; margin-bottom: 4px; }
+.constellation-tip p { margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+
+/* ------------------------------------------------------------- collection */
+.collection-grid { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-height: 34px; }
+.collection-item { font-size: 24px; line-height: 1; display: inline-block; }
+.collection-more {
+  font-size: 13px; color: var(--muted); background: rgba(255,255,255,0.06);
+  border-radius: 999px; padding: 4px 10px; align-self: center;
+}
+
+/* ---------------------------------------------------------- progress overlay */
+.progress-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 50;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+.progress-card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 20px; max-width: 480px; width: 100%; max-height: 85vh; overflow-y: auto;
+}
+.progress-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.progress-head h2 { margin: 0; font-size: 17px; }
+.progress-sub {
+  font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--muted); margin: 20px 0 10px; font-weight: 600;
+}
+.progress-worlds { display: grid; gap: 12px; }
+.progress-world { border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.progress-world-name { font-weight: 600; font-size: 14px; margin-bottom: 8px; }
+
+/* ------------------------------------------------------------- reward flight */
+.reward-flight { position: fixed; z-index: 70; pointer-events: none; line-height: 1; }
+
+.masterybanner {
+  position: fixed; left: 50%; top: 18%; transform: translateX(-50%);
+  z-index: 65; background: rgba(10,14,24,0.94); border: 1px solid #ffe27a;
+  border-radius: 14px; padding: 16px 22px; text-align: center; max-width: 300px;
+  box-shadow: 0 10px 40px rgba(255,226,122,0.25);
+}
+.masterybanner b { display: block; font-size: 15px; color: #ffe27a; margin-bottom: 4px; }
+.masterybanner p { margin: 0; font-size: 12.5px; color: var(--muted); }

@@ -1,8 +1,9 @@
-import type { LearnerModel } from './types';
+import type { LearnerModel, WorldId } from './types';
 import { createLearner } from './learnerModel';
 import { defaultProfile, normaliseName, type PersonalProfile } from './cast';
 import type { QuestState } from './quest';
 import { initStruggle, type StruggleState } from './struggle';
+import { WORLD_IDS } from './worlds';
 
 /**
  * The household — one device, one or more children, one grown-up gate.
@@ -41,6 +42,15 @@ export interface ChildSave {
   /** true if their last sitting reached its own natural end — read on the
    *  next load to start a fresh sitting rather than resuming a finished one */
   sittingEnded: boolean;
+  /** lifetime total, one per correct answer — never resets */
+  stars: number;
+  /** one per completed quest, credited to whichever world it was played in —
+   *  driven by effort (a quest concluding), never by correctness */
+  collection: Record<WorldId, number>;
+}
+
+function emptyCollection(): Record<WorldId, number> {
+  return Object.fromEntries(WORLD_IDS.map((w) => [w, 0])) as Record<WorldId, number>;
 }
 
 const HH_KEY = 'numbersmith.household.v1';
@@ -76,6 +86,7 @@ export function loadHousehold(): Household {
       saveChildSave(id, {
         model: createLearner(id, name), struggle: initStruggle(), profile, index: 0,
         quest: null, questNumber: 0, sittingEnded: false,
+        stars: 0, collection: emptyCollection(),
       });
       const h: Household = { pin: null, children: [meta], activeChildId: id };
       saveHousehold(h);
@@ -105,11 +116,14 @@ export function newChildSave(id: string, name: string): ChildSave {
     quest: null,
     questNumber: 0,
     sittingEnded: false,
+    stars: 0,
+    collection: emptyCollection(),
   };
 }
 
-/** Old saves predate the quest layer — default the fields they never had. */
-function withQuestDefaults(raw: Partial<ChildSave>, fallback: ChildSave): ChildSave {
+/** Old saves predate later fields (the quest layer, then stars/collection) —
+ *  default whatever they never had rather than require a version bump. */
+function withDefaults(raw: Partial<ChildSave>, fallback: ChildSave): ChildSave {
   return {
     model: raw.model ?? fallback.model,
     struggle: raw.struggle ?? fallback.struggle,
@@ -118,13 +132,15 @@ function withQuestDefaults(raw: Partial<ChildSave>, fallback: ChildSave): ChildS
     quest: raw.quest ?? null,
     questNumber: raw.questNumber ?? 0,
     sittingEnded: raw.sittingEnded ?? false,
+    stars: raw.stars ?? 0,
+    collection: { ...emptyCollection(), ...raw.collection },
   };
 }
 
 export function loadChildSave(id: string, name: string): ChildSave {
   try {
     const raw = localStorage.getItem(childKey(id));
-    if (raw) return withQuestDefaults(JSON.parse(raw), newChildSave(id, name));
+    if (raw) return withDefaults(JSON.parse(raw), newChildSave(id, name));
   } catch {
     /* fall through to a fresh save */
   }

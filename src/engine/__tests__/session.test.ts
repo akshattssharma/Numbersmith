@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { mastery } from '../learnerModel';
 import { Session } from '../session';
 
 /**
@@ -162,5 +163,94 @@ describe('the pre-answer companion line', () => {
     }
     // Item 0 of the sitting is allowed to greet; none of the rest should.
     expect(beats.slice(1).every((b) => b === 'greet')).toBe(false);
+  });
+});
+
+describe('the reward tiers: stars, world collection, mastery/ready transitions', () => {
+  it('every correct answer adds one lifetime star, and starsEarned always matches it', () => {
+    const s = new Session();
+    let expected = 0;
+    for (let i = 0; i < 40; i++) {
+      const turn = s.nextTurn();
+      const res = s.submit(turn, turn.selection.problem.answer, { latencyMs: 4000 });
+      expect(res.starsEarned).toBe(1);
+      expected += 1;
+      expect(s.stars).toBe(expected);
+    }
+    // Lifetime, not per-sitting — a fresh sitting must not zero it.
+    s.beginSitting();
+    expect(s.stars).toBe(expected);
+  });
+
+  it('a wrong answer earns no star and leaves the lifetime total untouched', () => {
+    const s = new Session();
+    const turn = s.nextTurn();
+    const before = s.stars;
+    const res = s.submit(turn, turn.selection.problem.answer + 1, { latencyMs: 4000 });
+    expect(res.starsEarned).toBe(0);
+    expect(s.stars).toBe(before);
+  });
+
+  it('collectionGained fires exactly on the item that concludes a quest, crediting that quest\'s own world', () => {
+    const s = new Session();
+    let gains = 0;
+    for (let i = 0; i < 80; i++) {
+      const turn = s.nextTurn();
+      const worldInFlight = s.quest?.goal.worldId;
+      const res = s.submit(turn, turn.selection.problem.answer, { latencyMs: 4000 });
+      if (res.collectionGained) {
+        gains += 1;
+        expect(res.collectionGained).toBe(worldInFlight);
+      }
+    }
+    expect(gains).toBeGreaterThan(0);
+    // Every gain landed somewhere — the collection total matches the gain count exactly.
+    const total = Object.values(s.collection).reduce((a, b) => a + b, 0);
+    expect(total).toBe(gains);
+  });
+
+  it('newlyMastered fires at most once per concept, and only once mastery has actually crossed 0.85', () => {
+    const s = new Session();
+    const seen = new Set<string>();
+    for (let i = 0; i < 150; i++) {
+      const turn = s.nextTurn();
+      const res = s.submit(turn, turn.selection.problem.answer, { latencyMs: 4000 });
+      if (res.newlyMastered) {
+        expect(seen.has(res.newlyMastered)).toBe(false);
+        seen.add(res.newlyMastered);
+        expect(mastery(s.model, res.newlyMastered)).toBeGreaterThanOrEqual(0.85);
+      }
+    }
+    expect(seen.size).toBeGreaterThan(0);
+  });
+
+  it('newlyReady names a concept only at the moment it first becomes reachable', () => {
+    const s = new Session();
+    const seen = new Set<string>();
+    for (let i = 0; i < 150; i++) {
+      const turn = s.nextTurn();
+      const res = s.submit(turn, turn.selection.problem.answer, { latencyMs: 4000 });
+      for (const c of res.newlyReady) {
+        expect(seen.has(c)).toBe(false);
+        seen.add(c);
+      }
+    }
+    expect(seen.size).toBeGreaterThan(0);
+  });
+
+  it('a save/restore round trip carries stars and the world collection exactly', () => {
+    const s = new Session();
+    playCorrectly(s, 60);
+    const save = s.exportSave();
+    expect(save.stars).toBeGreaterThan(0);
+    expect(Object.values(save.collection).some((n) => n > 0)).toBe(true);
+
+    const restored = new Session(
+      save.model, 555, save.profile, save.struggle,
+      save.index, save.quest, save.questNumber, save.sittingEnded,
+      save.stars, save.collection,
+    );
+    expect(restored.stars).toBe(save.stars);
+    expect(restored.collection).toEqual(save.collection);
   });
 });
