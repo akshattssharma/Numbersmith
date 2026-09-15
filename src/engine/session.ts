@@ -1,5 +1,5 @@
 import { engagementScore, recordEngagement, defaultProfile, type PersonalProfile } from './cast';
-import { companionLine, type Beat, type Line } from './companion';
+import { companionLine, type Line } from './companion';
 import { chooseIntervention, logIntervention, type Intervention } from './interventions';
 import { createLearner, diagnose, isReady, mastery, recordAttempt, recordChallengeDoor, recordWorldEngagement } from './learnerModel';
 import { unlockedBy } from './conceptGraph';
@@ -29,7 +29,6 @@ export interface Turn {
   /** the problem as the child actually reads it, with their world woven in */
   rendered?: RenderedProblem;
   selection: Selection;
-  line: Line;
   intervention?: Intervention;
   challengeDoorOffered: boolean;
 }
@@ -235,7 +234,6 @@ export class Session {
         concept: step.concept,
         rationale: `Calibration item ${index + 1}/6 — ${step.probe}. To the child this is just the opening of the game; there is no quiz, no grade question and no settings screen.`,
       },
-      line: companionLine(this.model, index === 0 ? 'greet' : 'correct'),
       challengeDoorOffered: false,
     };
   }
@@ -319,19 +317,11 @@ export class Session {
       }
     }
 
-    // Was: the second line here re-derived its own (buggy) beat instead of
-    // using this one — its final fallback branch said 'greet' where it meant
-    // 'correct', so every non-opening, non-catch item showed a greeting line
-    // forever. Only one beat should ever be computed here.
-    const beat: Beat = selection.reason === 'catch-the-mistake' ? 'catch-setup' : this.index === 0 ? 'greet' : 'correct';
-    const line = companionLine(this.model, beat);
-
     return {
       index: this.index,
       predicted: predictSuccess(this.model, selection.problem.concept, selection.problem.difficulty),
       rendered: this.render(selection.problem),
       selection,
-      line,
       intervention,
       challengeDoorOffered: decision.offerChallengeDoor,
     };
@@ -398,6 +388,13 @@ export class Session {
       this.pendingBug = null;
     }
 
+    // The only companion line a child ever sees or hears — there is
+    // deliberately no pre-answer line anymore. There used to be one, but
+    // its beat always resolved to 'correct' for every non-opening item
+    // (a real bug: it read like feedback on an item the child hadn't
+    // attempted yet), and once found, having Lumie compliment an unanswered
+    // question wasn't a bug to patch, it was a line that should never have
+    // existed.
     const beat =
       correct && p.difficulty > 0.6 ? 'correct-hard'
         : correct ? 'correct'

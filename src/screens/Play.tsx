@@ -100,11 +100,13 @@ export function Play({
     : prompt;
   const [doorOpen, setDoorOpen] = useState(false);
 
-  // Read the prompt, then Lumie's line, for every new item — cancelling
-  // whatever the previous item was still reading. Answering doesn't create
-  // a new `turn`, so this never re-fires just because feedback appeared.
+  // Read the prompt for every new item — cancelling whatever the previous
+  // item was still reading. There is deliberately no pre-answer companion
+  // line to read alongside it: Lumie has nothing to say about an item the
+  // child hasn't attempted yet, and speaking one out loud only made that
+  // more obvious than it ever was as silent, easy-to-skim text.
   useEffect(() => {
-    speakSequence([spokenPrompt, turn.line.text]);
+    speakSequence([spokenPrompt]);
   }, [turn]);
 
   const reset = () => {
@@ -142,7 +144,7 @@ export function Play({
       celebrateAudio(res.line.text);
     } else {
       setStreak(0);
-      speakSequence([res.line.text]);
+      speakSequence([res.line.text], 'soft');
     }
 
     if (originRect) {
@@ -318,9 +320,11 @@ export function Play({
 
             <div className="companion">
               <Lumie mood={mood} size={64} />
-              <div className={`bubble ${answered ? (feedback!.correct ? 'good' : 'gentle') : ''}`}>
-                {answered ? feedback!.line : turn.line.text}
-              </div>
+              {answered && (
+                <div className={`bubble ${feedback!.correct ? 'good' : 'gentle'}`}>
+                  {feedback!.line}
+                </div>
+              )}
             </div>
 
             <div className="controls">

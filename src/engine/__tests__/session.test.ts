@@ -142,27 +142,19 @@ describe('the sitting: quests with a designed win, ending on purpose', () => {
   });
 });
 
-describe('the pre-answer companion line', () => {
-  it("is not stuck on the 'greet' bucket for every item after the first", () => {
-    // Regression test for a real bug: the line was picked by re-deriving a
-    // second, subtly different beat expression whose final fallback said
-    // 'greet' where it meant 'correct' — so every non-opening, non-catch
-    // item showed a greeting line forever, no matter how many lines existed
-    // in the 'correct' bucket. This asserts the actual companion.ts beat
-    // metadata, not just line text (which can coincidentally overlap).
+describe('no pre-answer companion line', () => {
+  it('a turn never carries a line before it has been answered', () => {
+    // There used to be one, and it was a real bug, not a cosmetic one: its
+    // beat always resolved to 'correct' for every non-opening item, so
+    // Lumie complimented an item the child hadn't attempted yet. The fix
+    // wasn't to pick a better beat — it was to remove the pre-answer line
+    // entirely. This guards against it quietly coming back.
     const s = new Session();
-    for (let i = 0; i < 6; i++) {
-      const t = s.nextTurn(); // burn through calibration first
-      s.submit(t, t.selection.problem.answer, { latencyMs: 3000 });
-    }
-    const beats: string[] = [];
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 20; i++) {
       const turn = s.nextTurn();
-      beats.push(turn.line.beat);
+      expect('line' in turn).toBe(false);
       s.submit(turn, turn.selection.problem.answer, { latencyMs: 3000 });
     }
-    // Item 0 of the sitting is allowed to greet; none of the rest should.
-    expect(beats.slice(1).every((b) => b === 'greet')).toBe(false);
   });
 });
 

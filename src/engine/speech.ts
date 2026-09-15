@@ -20,17 +20,35 @@ function hasSpeechSynthesis(): boolean {
   return typeof window !== 'undefined' && 'speechSynthesis' in window;
 }
 
+// Common female-voice names across the platforms this actually has to run
+// on — Windows/Edge, macOS/iOS Safari, Android/Chrome. The Web Speech API
+// has no standard gender field, so name-matching is the only lever there is.
+const FEMALE_NAME_HINTS = [
+  'female', 'zira', 'aria', 'jenny', 'samantha', 'karen', 'moira', 'tessa',
+  'victoria', 'susan', 'salli', 'joanna', 'ivy', 'kendra', 'kimberly', 'amy',
+  'emma', 'fiona', 'serena', 'martha', 'allison', 'ava', 'kate', 'kathy',
+  'google us english',
+];
+
+function scoreVoice(v: SpeechSynthesisVoice): number {
+  const name = v.name.toLowerCase();
+  let score = 0;
+  if (v.lang.startsWith('en')) score += 100;
+  // Never trade "stays on the device" for a fancier-sounding name — some
+  // platforms' better-sounding voices are literally a network call
+  // (Edge's "(Natural)"/"Online" voices), which would break the same
+  // nothing-leaves-the-device commitment the rest of the engine holds to.
+  if (v.localService) score += 50;
+  if (FEMALE_NAME_HINTS.some((hint) => name.includes(hint))) score += 20;
+  return score;
+}
+
 function loadVoice(): void {
   if (!hasSpeechSynthesis()) return;
   const voices = window.speechSynthesis.getVoices();
   if (!voices.length) return;
   voicesLoaded = true;
-  // A local (on-device) English voice reads numbers and punctuation most
-  // reliably, and avoids the extra latency some platforms add for a
-  // "network" voice — no quality gain here that would be worth the wait.
-  voice = voices.find((v) => v.lang.startsWith('en') && v.localService)
-    ?? voices.find((v) => v.lang.startsWith('en'))
-    ?? voices[0] ?? null;
+  voice = voices.slice().sort((a, b) => scoreVoice(b) - scoreVoice(a))[0] ?? null;
 }
 
 if (hasSpeechSynthesis()) {
@@ -48,25 +66,38 @@ export function setSpeechEnabled(on: boolean): void {
 }
 
 /**
+ * Rate/pitch presets, not one fixed setting — the browser voice itself is
+ * the biggest lever on "robotic vs. warm" and this engine has no control
+ * over that, but the moment still matters: a prompt or a hint should read
+ * calm and clear, a correct answer should sound genuinely pleased, and a
+ * miss should stay soft rather than falsely cheerful.
+ */
+export type SpeechTone = 'calm' | 'excited' | 'soft';
+
+const TONE_PRESETS: Record<SpeechTone, { rate: number; pitch: number }> = {
+  calm: { rate: 0.93, pitch: 1.08 },
+  excited: { rate: 1.02, pitch: 1.2 },
+  soft: { rate: 0.88, pitch: 1.0 },
+};
+
+/**
  * Cancels anything still queued, then speaks each text in order. The
  * cancel is so a new turn's prompt+line replaces whatever the last turn
  * was still reading; queuing (rather than cancelling) between the texts in
  * one call is what lets a turn's own prompt-then-line pair play back to
  * back without one talking over the other.
  */
-export function speakSequence(texts: (string | undefined)[]): void {
+export function speakSequence(texts: (string | undefined)[], tone: SpeechTone = 'calm'): void {
   if (!speechEnabled || !hasSpeechSynthesis()) return;
   const synth = window.speechSynthesis;
   synth.cancel();
   if (!voicesLoaded) loadVoice();
+  const { rate, pitch } = TONE_PRESETS[tone];
   for (const text of texts) {
     if (!text) continue;
     const utter = new SpeechSynthesisUtterance(text);
-    // Slightly slower and a touch higher — clearer for a listener who may
-    // not be reading along, without turning cartoonish. A starting point,
-    // not a tuned constant.
-    utter.rate = 0.95;
-    utter.pitch = 1.05;
+    utter.rate = rate;
+    utter.pitch = pitch;
     if (voice) utter.voice = voice;
     synth.speak(utter);
   }
@@ -118,5 +149,5 @@ function playChime(): void {
 export function celebrate(text: string | undefined): void {
   playChime();
   if (!text) return;
-  setTimeout(() => speakSequence([text]), 420);
+  setTimeout(() => speakSequence([text], 'excited'), 420);
 }
