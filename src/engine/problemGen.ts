@@ -27,7 +27,7 @@ const pick = <T,>(rng: () => number, xs: T[]): T => xs[Math.floor(rng() * xs.len
 const between = (rng: () => number, lo: number, hi: number) =>
   lo + Math.floor(rng() * (hi - lo + 1));
 
-const KIND_FOR: Record<ConceptId, ChallengeKind> = {
+export const KIND_FOR: Record<ConceptId, ChallengeKind> = {
   'number-sense': 'load',
   'counting-on': 'combine',
   'number-bonds-10': 'combine',

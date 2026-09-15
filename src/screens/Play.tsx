@@ -3,8 +3,8 @@ import { Avatar } from '../components/Avatar';
 import { BundleBoard } from '../components/BundleBoard';
 import { GatherBoard } from '../components/GatherBoard';
 import { Lumie, type LumieMood } from '../components/Lumie';
-import { companionLine } from '../engine/companion';
 import { classifyDragStrategy, type DropEvent } from '../engine/dragStrategy';
+import { generateHint } from '../engine/hints';
 import { Session, type Turn } from '../engine/session';
 import type { Diagnosis } from '../engine/types';
 import { WORLDS } from '../engine/worlds';
@@ -145,8 +145,11 @@ export function Play({
 
             {quest && (
               <div className="queststrip">
-                <span className="questlabel">{quest.goal.label}</span>
-                <div className="questmeter" aria-hidden>
+                {/* The goal text added nothing next to the meter itself — the
+                    dots already say "some done, more to go" at a glance. Kept
+                    as an aria-label rather than dropped outright, since it's
+                    still the right answer to "what is this progress bar for". */}
+                <div className="questmeter" aria-hidden={false} aria-label={quest.goal.label}>
                   {Array.from({ length: quest.goal.itemsTarget }, (_, i) => (
                     <span key={i} className={i < quest.itemsDone ? 'on' : ''} />
                   ))}
@@ -231,7 +234,7 @@ export function Play({
                   </button>
                   {hints > 0 && (
                     <span className="small" style={{ opacity: 0.8 }}>
-                      {companionLine(session.model, 'hint').text}
+                      {generateHint(p, world, hints >= 2 ? 2 : 1)}
                     </span>
                   )}
                 </>

@@ -1,12 +1,12 @@
 import { engagementScore, recordEngagement, defaultProfile, type PersonalProfile } from './cast';
-import { companionLine, type Line } from './companion';
+import { companionLine, type Beat, type Line } from './companion';
 import { chooseIntervention, logIntervention, type Intervention } from './interventions';
 import { createLearner, diagnose, recordAttempt, recordChallengeDoor, recordWorldEngagement } from './learnerModel';
 import { generate, makeRng } from './problemGen';
 import { advanceQuest, isLastQuestItem, startQuest, type QuestState } from './quest';
 import { selectNext, type Selection } from './selector';
 import { derivePolicy, initStruggle, nextDifficulty, observeOutcome, predictSuccess, type StruggleState } from './struggle';
-import type { Attempt, ConceptId, Diagnosis, LearnerModel, MisconceptionId, Problem, Representation, WorldId } from './types';
+import type { Attempt, ChallengeKind, ConceptId, Diagnosis, LearnerModel, MisconceptionId, Problem, Representation, WorldId } from './types';
 import { intensityForSurface, renderProblem, type RenderedProblem } from './storyTemplates';
 import { WORLD_IDS } from './worlds';
 
@@ -75,7 +75,7 @@ export class Session {
   trace: {
     index: number; concept: string; representation: string; difficulty: number;
     reason: string; rationale: string; correct: boolean; errorClass: string;
-    override: string; world: WorldId; tone: string;
+    override: string; world: WorldId; tone: string; kind: ChallengeKind;
   }[] = [];
   /** personalized-vs-control engagement log — proves or disproves the feature */
   contextTrace: { index: number; isControl: boolean; score: number; ids: string[] }[] = [];
@@ -243,6 +243,7 @@ export class Session {
     }
 
     const recentRepairs = this.trace.slice(-6).filter((t) => t.reason === 'repair-misconception').length;
+    const recentKinds = this.trace.slice(-6).map((t) => t.kind);
 
     // A quest is always in flight once calibration is behind us: start the
     // next one the moment the last one concluded, never leaving a gap where
@@ -273,6 +274,7 @@ export class Session {
       allowCatch: true,
       recentRepairs,
       questWin,
+      recentKinds,
     });
 
     let intervention: Intervention | undefined;
@@ -289,8 +291,12 @@ export class Session {
       }
     }
 
-    const beat = selection.reason === 'catch-the-mistake' ? 'catch-setup' : this.index === 0 ? 'greet' : 'correct';
-    const line = companionLine(this.model, this.index === 0 ? 'greet' : beat === 'catch-setup' ? 'catch-setup' : 'greet');
+    // Was: the second line here re-derived its own (buggy) beat instead of
+    // using this one — its final fallback branch said 'greet' where it meant
+    // 'correct', so every non-opening, non-catch item showed a greeting line
+    // forever. Only one beat should ever be computed here.
+    const beat: Beat = selection.reason === 'catch-the-mistake' ? 'catch-setup' : this.index === 0 ? 'greet' : 'correct';
+    const line = companionLine(this.model, beat);
 
     return {
       index: this.index,
@@ -372,6 +378,7 @@ export class Session {
       correct,
       errorClass: diagnosis.errorClass,
       override: 'none',
+      kind: p.kind,
       world: this.model.policy.world,
       tone: this.model.policy.companionTone,
     });
