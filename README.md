@@ -54,6 +54,7 @@ diagnosis itself, deliberately; see [Safety](#safety-is-an-architecture-not-a-fi
 | **Personalization** | The child's friends and favourite things woven into problems — gated by the learner model, with a control holdout to check it works | [`cast.ts`](src/engine/cast.ts), [`storyTemplates.ts`](src/engine/storyTemplates.ts) |
 | **Household** | Kid mode vs. parent mode, a local PIN gate, and more than one child on the same device — each with their own progress, cast and favourites | [`household.ts`](src/engine/household.ts) |
 | **Durability** | A parent-initiated JSON backup of the whole household — no account, nothing sent anywhere — restorable from either the Kids tab or, since a fresh device has no children yet to reach that tab, the onboarding screen itself. See finding 19 | [`household.ts`](src/engine/household.ts), [`RestoreBackup.tsx`](src/components/RestoreBackup.tsx) |
+| **Mastery loop** | Once every one of the 14 concepts is mastered, the selector stops pretending there's still a frontier to push into and switches to honestly-labeled review, rotating by staleness; the parent view, constellation and Brain view all read the same `graphMastered()` rather than each guessing. See finding 20 | [`learnerModel.ts`](src/engine/learnerModel.ts), [`selector.ts`](src/engine/selector.ts) |
 
 ### Two screens, not one with a debug panel bolted on
 
@@ -426,6 +427,33 @@ real browser rather than by unit-testing the pieces in isolation — the
 same category of gap as finding 15's Framer Motion bugs, a fixed suite
 only answers the questions it's asked, and "does this feature reach the
 person who needs it" isn't a question a component test knows to ask.
+
+**20. Finishing the curriculum was already possible; the engine just lied
+about it.** Nothing stopped a child from mastering all 14 concepts —
+`pickFrontier()` already had a staleness-rotation fallback for exactly that
+case (added when finding it silently defaulted to the same concept
+forever). What it didn't have was honesty about what was happening next:
+once every concept crossed 0.85, the selector kept reporting `'frontier'`
+and rationale text like "Prerequisites are in place... pushing forward at
+difficulty 0.50" for a concept that had nothing left to push into — the
+same shape of bug finding 17 fixed for the companion line, just aimed at
+the Brain view instead of a child's ear. There was also no acknowledgment
+anywhere else: the parent view kept naming a "frontier" concept as if
+something new were still being taught, and the constellation, kid- or
+parent-facing, gave a fully-lit sky no different treatment than a sky with
+one star left dim. Asked to design an endgame, the honest scope turned out
+to be smaller than "endgame" suggests: the review mechanism already
+existed and didn't need reinventing, it needed to stop pretending to be
+something else. `graphMastered()` (`learnerModel.ts`) is now the one place
+that question gets answered, and `selectNext()`'s new `'mastery-review'`
+tier, `parentInsights.ts`, `Constellation.tsx` and `TurnResult.graphCompleted`
+all read it rather than each quietly re-deriving their own guess. New
+curriculum content (fractions, geometry) stays out of scope on purpose —
+"mastery loop now, content later" was the explicit brief, and the two are
+separable: the loop that keeps a graduated child engaged doesn't need new
+material to justify existing, and building it revealed that the two
+follow-on fixes (an honest reason label, and telling the parent and child
+what actually happened) mattered more than any new mechanic would have.
 
 ---
 

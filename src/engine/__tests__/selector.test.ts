@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { ALL_CONCEPTS } from '../conceptGraph';
 import { createLearner } from '../learnerModel';
 import { makeRng } from '../problemGen';
 import { pickFrontier, selectNext, strongestConcept } from '../selector';
@@ -147,5 +148,52 @@ describe('strongestConcept: a real champion, not a lucky or bugged one', () => {
     const m = createLearner('t', 'Test');
     expect(() => strongestConcept(m)).not.toThrow();
     expect(typeof strongestConcept(m)).toBe('string');
+  });
+});
+
+describe('mastery-review: the whole graph mastered, this is upkeep not instruction', () => {
+  function fullyMasteredLearner() {
+    const m = createLearner('t', 'Test');
+    const now = Date.now();
+    ALL_CONCEPTS.forEach((c, i) => {
+      m.concepts[c].pKnow = 0.95;
+      m.concepts[c].attempts = 10;
+      m.concepts[c].lastSeen = now - i * 1000;
+    });
+    // Enough history on every representation that the thin-surface probe
+    // (an earlier, higher-priority tier) never fires here, so this test
+    // isn't at the mercy of its rng gate.
+    (['manipulative', 'symbolic', 'story'] as const).forEach((r) => {
+      for (let i = 0; i < 15; i++) {
+        m.history.push({
+          problemId: `p-${r}-${i}`, concept: 'number-sense', representation: r,
+          given: 1, correct: true, difficulty: 0.3, latencyMs: 1000,
+          hintsUsed: 0, churn: 0, abandoned: false, at: now,
+        });
+      }
+    });
+    const stalest = ALL_CONCEPTS[ALL_CONCEPTS.length - 1];
+    m.concepts[stalest].lastSeen = now - 999_000;
+    return { m, stalest };
+  }
+
+  it('serves a review item on the most overdue concept, honestly labeled', () => {
+    const { m, stalest } = fullyMasteredLearner();
+    const sel = selectNext(m, { rng: makeRng(1), difficulty: 0.5, now: Date.now(), itemIndex: 50 });
+    expect(sel.reason).toBe('mastery-review');
+    expect(sel.concept).toBe(stalest);
+  });
+
+  it('rotates to a different concept once the stalest one has just been served', () => {
+    const { m, stalest } = fullyMasteredLearner();
+    const first = selectNext(m, { rng: makeRng(1), difficulty: 0.5, now: Date.now(), itemIndex: 50 });
+    expect(first.concept).toBe(stalest);
+
+    // The same effect answering it would have: lastSeen jumps to now, so it
+    // is no longer the most overdue concept in the graph.
+    m.concepts[stalest].lastSeen = Date.now();
+    const second = selectNext(m, { rng: makeRng(1), difficulty: 0.5, now: Date.now(), itemIndex: 51 });
+    expect(second.reason).toBe('mastery-review');
+    expect(second.concept).not.toBe(stalest);
   });
 });

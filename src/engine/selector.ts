@@ -1,5 +1,5 @@
 import { ALL_CONCEPTS, CONCEPTS, topoOrder } from './conceptGraph';
-import { blockingPrereq, expectedSuccess, isReady, mastery, bugConcepts, bestRepresentation } from './learnerModel';
+import { blockingPrereq, expectedSuccess, graphMastered, isReady, mastery, bugConcepts, bestRepresentation } from './learnerModel';
 import { generate, generateDiscriminating, KIND_FOR } from './problemGen';
 import type { ChallengeKind, ConceptId, LearnerModel, MisconceptionId, Problem, Representation } from './types';
 
@@ -19,6 +19,9 @@ import type { ChallengeKind, ConceptId, LearnerModel, MisconceptionId, Problem, 
  *   6. Probe a neglected surface — periodically test the same concept on the
  *      representation we have least evidence for, so the affinity picture stays
  *      honest rather than self-confirming.
+ *   7. Once every concept in the graph is mastered, there is no frontier left
+ *      to move into — the whole session becomes upkeep, rotating through
+ *      whichever concept is most overdue for review (`mastery-review`).
  */
 
 export type Reason =
@@ -32,7 +35,8 @@ export type Reason =
   | 'consolidate'
   | 'confidence-win'
   | 'quest-win'
-  | 'vary-kind';
+  | 'vary-kind'
+  | 'mastery-review';
 
 export interface Selection {
   problem: Problem;
@@ -221,6 +225,28 @@ export function selectNext(
       reason: 'probe-representation',
       concept: c,
       rationale: `Only ${thinnest.n} attempt${thinnest.n === 1 ? '' : 's'} on the ${thinnest.r} surface. Spending an item there deliberately — an affinity estimate built only from the surface we already prefer just confirms itself.`,
+    };
+  } else if (graphMastered(m)) {
+    /* ------- 4'. the whole graph is mastered: maintenance, not instruction -
+       Nothing below this point (spaced-review's rng gate, consolidate,
+       frontier) is honest once every one of the 14 concepts is already at
+       mastery: frontier's own rationale text talks about "pushing forward"
+       into a concept, and pickFrontier() has nowhere left to push into — it
+       was quietly falling back to a staleness rotation and reporting it as
+       'frontier', which is the same kind of mislabeling finding 17 fixed for
+       the companion line, just in the Brain view instead of the child's ear.
+       Once here, every remaining item in the session is a deliberate review,
+       named as one, picked by the same "most overdue" logic spaced-review
+       already used, just unconditional rather than gated behind a 30% roll
+       and a decay window meant for a still-growing curriculum. */
+    const target = ALL_CONCEPTS
+      .map((c) => ({ c, age: (now - m.concepts[c].lastSeen) / DAY }))
+      .sort((a, b) => b.age - a.age)[0];
+    provisional = {
+      problem: generate({ concept: target.c, difficulty: Math.max(0.2, difficulty - 0.15), representation: m.policy.representation, rng }),
+      reason: 'mastery-review',
+      concept: target.c,
+      rationale: `Every concept in the graph is mastered — this session is upkeep, not new material. ${CONCEPTS[target.c].label} was last seen ${target.age.toFixed(1)} days ago, the longest of the fourteen, so it's due before it fades.`,
     };
   } else {
     /* ------- 4. spaced review of something going stale ------------------- */

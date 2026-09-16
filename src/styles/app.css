@@ -369,6 +369,10 @@ button.btn.big { font-size: 16px; padding: 12px 22px; border-radius: 12px; }
 
 /* ----------------------------------------------------------- constellation */
 .constellation-wrap { position: relative; }
+.constellation-complete {
+  text-align: center; font-size: 13px; font-weight: 600; color: #ffe27a;
+  margin: 0 0 6px;
+}
 .constellation-svg { width: 100%; height: auto; display: block; }
 .constellation-edge { stroke: rgba(255,255,255,0.16); stroke-width: 1.5; }
 .constellation-node { cursor: pointer; }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mastery } from '../learnerModel';
+import { graphMastered, mastery } from '../learnerModel';
 import { Session } from '../session';
 
 /**
@@ -214,6 +214,33 @@ describe('the reward tiers: stars, world collection, mastery/ready transitions',
       }
     }
     expect(seen.size).toBeGreaterThan(0);
+  });
+
+  it('graphCompleted fires exactly once, exactly when the whole graph first becomes mastered', () => {
+    const s = new Session();
+    let fireCount = 0;
+    for (let i = 0; i < 60; i++) {
+      const turn = s.nextTurn();
+      const res = s.submit(turn, turn.selection.problem.answer, { latencyMs: 4000 });
+      if (res.graphCompleted) {
+        fireCount += 1;
+        expect(graphMastered(s.model)).toBe(true);
+        break; // the state stays mastered from here — nothing left to observe
+      }
+      expect(graphMastered(s.model)).toBe(false);
+    }
+    expect(fireCount).toBe(1);
+  });
+
+  it('once the graph is mastered, the selector shifts to reviewing it rather than teaching something new', () => {
+    const s = new Session();
+    for (let i = 0; i < 60 && !graphMastered(s.model); i++) {
+      const turn = s.nextTurn();
+      s.submit(turn, turn.selection.problem.answer, { latencyMs: 4000 });
+    }
+    expect(graphMastered(s.model)).toBe(true);
+    const turn = s.nextTurn();
+    expect(turn.selection.reason).toBe('mastery-review');
   });
 
   it('newlyReady names a concept only at the moment it first becomes reachable', () => {
