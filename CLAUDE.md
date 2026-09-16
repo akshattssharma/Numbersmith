@@ -61,7 +61,7 @@ Three facts the engine already produces every turn — a correct answer, a concl
 
 ### Installable / offline
 
-`vite-plugin-pwa` (configured in `vite.config.ts`) generates the manifest and a precaching service worker at build time — nothing to maintain by hand. The service worker only registers against a real build (`npm run build && npm run preview`), never `npm run dev`. `public/icons/` holds the generated app icons (Lumie's star mark, rendered at the sizes each platform needs); `index.html` carries the iOS-specific meta tags Safari reads for "Add to Home Screen" since it ignores the manifest for that.
+`vite-plugin-pwa` (configured in `vite.config.ts`) generates the manifest and a precaching service worker at build time — nothing to maintain by hand. The service worker only registers against a real build (`npm run build && npm run preview`), never `npm run dev`. `public/icons/` holds the generated app icons (the Numbersmith mascot mark, rendered at the sizes each platform needs — a distinct character from Lumie, the in-game companion); `index.html` carries the iOS-specific meta tags Safari reads for "Add to Home Screen" since it ignores the manifest for that.
 
 ### Safety architecture (see README "Safety is an architecture, not a filter")
 
