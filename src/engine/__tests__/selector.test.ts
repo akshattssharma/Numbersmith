@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createLearner } from '../learnerModel';
 import { makeRng } from '../problemGen';
-import { pickFrontier, selectNext } from '../selector';
+import { pickFrontier, selectNext, strongestConcept } from '../selector';
 import type { ChallengeKind, ConceptId } from '../types';
 
 /**
@@ -79,5 +79,73 @@ describe('pickFrontier: after the whole graph is mastered', () => {
     m.concepts[stalest].lastSeen = now - 999_000;
 
     expect(pickFrontier(m)).toBe(stalest);
+  });
+});
+
+/**
+ * Found by running the five-children simulation, not by inspection: the
+ * "designed win" at a quest's end scored 19% real accuracy against an
+ * intended ~88%, because its difficulty was inverted from the engine's own
+ * *belief* (pKnow) rather than anything about how a child's real success
+ * actually falls off with difficulty — and belief rising toward mastery
+ * made it pick a *harder* item, exactly backwards. Confirmed-win and
+ * quest-win also shared a second bug: strongestConcept() ranked by raw
+ * mastery alone, which could crown a concept attempted once and gotten
+ * lucky on, or — worse — one drilled hard because of a live misconception,
+ * whose capped-but-still-highest score could still win the ranking.
+ */
+describe('the quest-win designed win: flat difficulty, not belief-scaled', () => {
+  it('stays at the same low difficulty whether mastery is barely there or maxed out', () => {
+    const low = createLearner('t', 'Test');
+    low.concepts['number-sense'].pKnow = 0.6;
+    low.concepts['number-sense'].attempts = 5;
+    const selLow = selectNext(low, {
+      rng: makeRng(1), difficulty: 0.3, now: Date.now(), itemIndex: 20, questWin: true,
+    });
+
+    const high = createLearner('t', 'Test');
+    high.concepts['number-sense'].pKnow = 0.99;
+    high.concepts['number-sense'].attempts = 5;
+    const selHigh = selectNext(high, {
+      rng: makeRng(1), difficulty: 0.3, now: Date.now(), itemIndex: 20, questWin: true,
+    });
+
+    expect(selLow.reason).toBe('quest-win');
+    expect(selHigh.reason).toBe('quest-win');
+    // The old bug: a near-mastered concept got a *harder* item to hold a
+    // constant predicted-success target. Flat difficulty means these match.
+    expect(selHigh.problem.difficulty).toBe(selLow.problem.difficulty);
+    expect(selHigh.problem.difficulty).toBeLessThan(0.3);
+  });
+});
+
+describe('strongestConcept: a real champion, not a lucky or bugged one', () => {
+  it('prefers a concept attempted enough times over one with higher pKnow but almost no attempts', () => {
+    const m = createLearner('t', 'Test');
+    m.concepts['number-sense'].pKnow = 0.95;
+    m.concepts['number-sense'].attempts = 1; // one lucky guess
+    m.concepts['counting-on'].pKnow = 0.75;
+    m.concepts['counting-on'].attempts = 8; // genuinely demonstrated
+
+    expect(strongestConcept(m)).toBe('counting-on');
+  });
+
+  it('skips a concept with a live misconception even if nothing else has higher mastery', () => {
+    const m = createLearner('t', 'Test');
+    m.concepts['sub-2digit-borrow'].pKnow = 0.9;
+    m.concepts['sub-2digit-borrow'].attempts = 10;
+    m.misconceptions['sub-smaller-from-larger'] = {
+      fires: 3, lastFired: Date.now(), confidence: 0.9, status: 'suspected', interventions: [],
+    };
+    m.concepts['counting-on'].pKnow = 0.7;
+    m.concepts['counting-on'].attempts = 8;
+
+    expect(strongestConcept(m)).toBe('counting-on');
+  });
+
+  it('still returns a concept for a brand-new learner with no attempts anywhere', () => {
+    const m = createLearner('t', 'Test');
+    expect(() => strongestConcept(m)).not.toThrow();
+    expect(typeof strongestConcept(m)).toBe('string');
   });
 });

@@ -355,6 +355,47 @@ direction: a fixed test suite didn't catch this because nothing was
 asserting on it, and this time neither did silently reading the screen —
 it took someone actually listening.
 
+**18. A "designed win" that scales with belief isn't designed, and isn't a
+win.** Finding 9 recorded the 80% target as structurally out of reach and
+moved on — but the two mechanics built specifically to *guarantee* a
+success (`quest-win`, the last item of every quest, and `confidence-win`,
+fired by the struggle controller for a child who needs one) were never
+checked against how a simulated child actually answers, only against the
+engine's own belief about them. `questWinDifficulty()` picked a difficulty
+by solving `expectedSuccess(pKnow, difficulty) = 0.88` for whatever `pKnow`
+the engine currently believed — so as belief in mastery rose, the item got
+*harder*, exactly backwards, because `expectedSuccess()` is the engine's
+model of the child, not the child. Running the five-children simulation
+and comparing the engine's predicted success against each persona's own
+(BKT-independent) response formula for their actual quest-win items showed
+the gap directly: real accuracy on quest-win items was 19% against an
+intended ~88%. The fix drops the belief-scaling entirely — quest-win now
+always asks at a flat, low difficulty (0.10), the same shape confidence-win
+already used at 0.05, both now justified by having swept candidate flat
+values against every persona's real response formula rather than picked by
+feel. That surfaced a second, older bug shared by both mechanics:
+`strongestConcept()`, which picks *which* concept gets the guaranteed-easy
+item, ranked by raw mastery alone — capable of crowning a concept attempted
+once and gotten lucky on (BKT's `guess` parameter can inflate `pKnow` fast
+on thin evidence), or worse, a concept drilled hard because of a live
+misconception, whose capped-but-still-highest score could still top the
+ranking. Sam — the persona with a confirmed subtraction bug — was the
+clearest case: her designed wins kept landing on the buggy concept itself.
+`strongestConcept()` now requires at least 5 attempts before a concept is
+eligible, excludes any concept touched by an unresolved misconception
+(suspected, confirmed, or still resolving — not just confirmed, since the
+skew showed up before confidence reached that bar), and falls back to an
+absolute mastery floor of 0.6 when enough seasoned concepts exist to
+choose one. Pooled quest-win accuracy went from 19% to 52% (Maya 17%→80%,
+Alex 40%→75%, Riley 0%→40%, Nia 33%→50%); Sam's held near 0% on a small
+sample, which is the mechanic correctly refusing to hand her a win on a
+concept she hasn't actually earned yet, not a residual bug. That refusal
+shows up in the divergence test too: Sam's overall session accuracy sits
+right at 30%, the band's new floor — one persona legitimately paying for
+not getting a rigged win the other four still get. This is the same
+lesson as finding 9 from a sharper angle: a percentage nobody checked
+against real behavior isn't evidence of anything, guaranteed or not.
+
 ---
 
 ## Safety is an architecture, not a filter

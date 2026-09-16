@@ -29,14 +29,19 @@ describe('the five-children thesis', () => {
 
   it('reaches an accuracy band well short of the 80% target, and we know why', () => {
     // Recorded rather than aspirational. The controller targets 80% and the
-    // simulated children land in the 40-65% range. Two causes, both real:
+    // simulated children land in the 30-65% range. Two causes, both real:
     // roughly a third of every session is deliberately spent on diagnosis and
     // exploration rather than on items chosen to be winnable, and traits like
     // Riley's carelessness produce failures that no difficulty setting can
-    // prevent. This test exists to catch the band SHIFTING, not to claim the
-    // target is met.
+    // prevent. Sam sits at the bottom of the band on purpose now: the
+    // designed-win mechanics (quest-win, confidence-win) refuse to hand her a
+    // rigged win on sub-2digit-borrow while its misconception is still live,
+    // so unlike the other four she gets no free accuracy from that mechanic.
+    // This test exists to catch the band SHIFTING, not to claim the target is
+    // met — the 0.25 floor leaves one item's worth of room (1/30) below Sam's
+    // observed 30% before treating a further drop as a regression.
     journeys.forEach((j) => {
-      expect(j.summary.accuracy).toBeGreaterThan(0.3);
+      expect(j.summary.accuracy).toBeGreaterThan(0.25);
       expect(j.summary.accuracy).toBeLessThan(0.8);
     });
   });
@@ -102,9 +107,10 @@ describe('the five-children thesis', () => {
 
   it('never leaves a child failing most of a session', () => {
     // The floor that matters. Whatever else the controller does, nobody should
-    // finish having got the large majority of items wrong.
+    // finish having got the large majority of items wrong. See the accuracy
+    // band test above for why 0.25, not 0.3: Sam now lands right at 30%.
     journeys.forEach((j) => {
-      expect(j.summary.accuracy).toBeGreaterThan(0.3);
+      expect(j.summary.accuracy).toBeGreaterThan(0.25);
     });
   });
 

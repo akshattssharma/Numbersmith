@@ -103,20 +103,28 @@ export function selectNext(
      diagnostic item with narrative dressing on it. So the last item of every
      quest is reserved and pitched to land: a real cost in diagnostic power
      (this item was not chosen to teach or to test anything), paid for an
-     ending that actually resolves. It still outranks the emotional-rescue
-     win above only in the sense that both bypass ordinary selection — this
-     one takes the concept the child is already strongest at and asks for it
-     at a difficulty tuned for a high, not guaranteed, chance of success, so
-     it reads as earned rather than free. */
+     ending that actually resolves.
+
+     This used to derive its difficulty from expectedSuccess(mastery, ·),
+     inverted to target 88% — which sounds precise but was never actually
+     measuring the child's real odds: predictSuccess()/expectedSuccess()
+     model only the engine's *belief*, and as belief rises toward mastery
+     the inversion picks a *harder* item to hold that belief's predicted
+     success at a constant 88%. Checked against the five-children
+     simulation, that produced a 19% real success rate on this item
+     specifically, worse than confidence-win's flat-difficulty rescue
+     below. A flat, low, belief-independent difficulty is the same fix
+     confidence-win already uses, one notch above its 0.05 "panic button"
+     so a quest's win still reads as a little earned, not free. */
   if (opts.questWin) {
     const concept = strongestConcept(m);
     const rep = bestRepresentation(m);
-    const difficulty = questWinDifficulty(mastery(m, concept));
+    const difficulty = 0.1;
     return {
       problem: generate({ concept, difficulty, representation: rep, rng }),
       reason: 'quest-win',
       concept,
-      rationale: `Last item of the quest — reserved as a designed win, pitched for roughly ${(expectedSuccess(mastery(m, concept), difficulty) * 100).toFixed(0)}% success on their strongest concept. Deliberately not the most informative item this session could serve.`,
+      rationale: 'Last item of the quest — reserved as a designed win on their strongest demonstrated concept, at a deliberately low difficulty. Not the most informative item this session could serve.',
     };
   }
 
@@ -361,8 +369,45 @@ export function totalOnRep(m: LearnerModel, r: Representation): number {
   return m.history.filter((h) => h.representation === r).length;
 }
 
+/** How many attempts count as real evidence, not a lucky guess streak —
+ *  below this, BKT's `guess` parameter alone can carry pKnow surprisingly
+ *  far on a concept the child has barely touched. */
+const STRONGEST_CONCEPT_MIN_ATTEMPTS = 5;
+
+/** True if any not-yet-resolved wrong rule — suspected, confirmed, or
+ *  mid-repair — still touches this concept. mastery() already caps such a
+ *  concept's score rather than disqualifying it, and before a bug is even
+ *  suspected its pKnow can still be riding an unearned high from a few
+ *  early guesses; for ranking "strongest", a concept under any live
+ *  suspicion is exactly the wrong evidence to build a guaranteed win on. */
+function hasUnresolvedBug(m: LearnerModel, c: ConceptId): boolean {
+  return Object.entries(m.misconceptions).some(
+    ([id, st]) => st && st.status !== 'resolved' && bugConcepts(id as MisconceptionId).includes(c),
+  );
+}
+
+/**
+ * The concept to hang a "designed win" on — confidence-win and quest-win both
+ * need one the child has *actually* demonstrated, not just one BKT is
+ * currently most confident about. Ranking by raw mastery alone picked two
+ * kinds of false champions: a concept attempted once or twice and gotten
+ * lucky on, and — worse — a concept drilled heavily *because* of a live
+ * wrong rule, whose capped-but-still-highest-available score could still
+ * win the ranking. Prefers a concept that is both attempted enough and free
+ * of any unresolved bug; falls back a tier at a time so a brand-new child,
+ * or one whose every concept is currently under some suspicion, still gets
+ * an answer rather than none.
+ */
 export function strongestConcept(m: LearnerModel): ConceptId {
-  return ALL_CONCEPTS.slice().sort((a, b) => mastery(m, b) - mastery(m, a))[0];
+  const clean = ALL_CONCEPTS.filter((c) => !hasUnresolvedBug(m, c));
+  const seasoned = clean.filter((c) => m.concepts[c].attempts >= STRONGEST_CONCEPT_MIN_ATTEMPTS);
+  // A confirmed bug is excluded outright above, but a bug only just
+  // suspected — or a concept that is simply not genuinely strong yet — can
+  // still be the least-bad option in a ranking with no absolute floor. This
+  // is that floor: the same bar isReady() uses elsewhere for "good enough".
+  const solid = seasoned.filter((c) => mastery(m, c) >= 0.6);
+  const pool = solid.length ? solid : seasoned.length ? seasoned : clean.length ? clean : ALL_CONCEPTS;
+  return pool.slice().sort((a, b) => mastery(m, b) - mastery(m, a))[0];
 }
 
 /** Concepts the child could start next — used by the parent view and the map. */
@@ -374,17 +419,3 @@ export function currentRepresentation(m: LearnerModel, sel: Selection): Represen
   return sel.problem.representation;
 }
 
-/**
- * The difficulty that gives a child of this mastery roughly `target` odds of
- * success, inverting the same logistic `expectedSuccess` uses. A quest's
- * designed win is deliberately not the absolute floor (0.05, the panic-button
- * difficulty the confidence-win rescue reaches for) — a win that took no
- * effort at all doesn't feel like one. Clamped so a child with very low
- * mastery on their own best concept still gets something winnable, and a
- * child near-mastered on it isn't handed something trivial.
- */
-export function questWinDifficulty(pKnow: number, target = 0.88): number {
-  const logit = Math.log(target / (1 - target));
-  const d = 0.5 + ((pKnow - 0.5) * 6 - logit) / 5;
-  return Math.max(0.05, Math.min(0.92, d));
-}

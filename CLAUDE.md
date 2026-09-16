@@ -69,6 +69,6 @@ The companion (`companion.ts`) never holds an open-ended conversation with a chi
 
 ## Where to look first
 
-- `README.md` — the full "Findings from building it" log (17 entries as of this writing) documents every non-obvious bug and the reasoning behind fixes already made; check it before re-deriving something that was already tried and found wrong.
+- `README.md` — the full "Findings from building it" log (18 entries as of this writing) documents every non-obvious bug and the reasoning behind fixes already made; check it before re-deriving something that was already tried and found wrong.
 - `docs/PRODUCT_PLAN.md` — thesis, scope (grade 2-3, 14 concepts, deliberately not K-5), and what's deliberately not built yet.
 - `src/engine/__tests__/divergence.test.ts` + `scripts/divergence.ts` + `screens/FiveChildren.tsx` — the product's central thesis (adapting the whole experience, not just difficulty, changes outcomes) expressed as five simulated learner personas and asserted in CI, not just claimed.
