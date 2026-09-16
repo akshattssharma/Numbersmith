@@ -53,6 +53,7 @@ diagnosis itself, deliberately; see [Safety](#safety-is-an-architecture-not-a-fi
 | **Parent insights** | Plain-language findings and an off-screen activity. No accuracy percentage anywhere | [`parentInsights.ts`](src/engine/parentInsights.ts) |
 | **Personalization** | The child's friends and favourite things woven into problems — gated by the learner model, with a control holdout to check it works | [`cast.ts`](src/engine/cast.ts), [`storyTemplates.ts`](src/engine/storyTemplates.ts) |
 | **Household** | Kid mode vs. parent mode, a local PIN gate, and more than one child on the same device — each with their own progress, cast and favourites | [`household.ts`](src/engine/household.ts) |
+| **Durability** | A parent-initiated JSON backup of the whole household — no account, nothing sent anywhere — restorable from either the Kids tab or, since a fresh device has no children yet to reach that tab, the onboarding screen itself. See finding 19 | [`household.ts`](src/engine/household.ts), [`RestoreBackup.tsx`](src/components/RestoreBackup.tsx) |
 
 ### Two screens, not one with a debug panel bolted on
 
@@ -395,6 +396,36 @@ right at 30%, the band's new floor — one persona legitimately paying for
 not getting a rigged win the other four still get. This is the same
 lesson as finding 9 from a sharper angle: a percentage nobody checked
 against real behavior isn't evidence of anything, guaranteed or not.
+
+**19. A restore feature that only lives where you already have progress
+can't do the one thing it exists for.** Durability here means one thing
+honestly: everything lives only in this browser's `localStorage`, so the
+only backup a family gets is one they take themselves — a parent-initiated
+JSON file, no account, nothing sent anywhere, restorable on another device.
+The first version built the whole thing as a card in the Kids tab of the
+parent view: download a backup, restore one, done. It worked, and it also
+missed the actual scenario the feature exists for. `App.tsx` shows
+`Onboarding` unconditionally whenever `household.children.length === 0` —
+which is exactly the state of a brand-new device or a browser profile
+that just got cleared, and there is no path from that screen into the
+parent view at all, because there's no child yet to build a `Session`
+around. A parent arriving at a fresh install with their old backup file
+in hand would have hit "Welcome — who's playing?" with nowhere to put it.
+The fix pulled the restore half of the feature (file picker, parse,
+confirm-and-overwrite) out into its own component, `RestoreBackup.tsx`,
+so it could be mounted twice: once in the Kids tab for a parent tidying
+up an existing device, and once on `Onboarding`'s first screen for
+exactly the "new device" case, with the overwrite warning simply omitted
+when there's nothing yet to overwrite. Restoring a household also has to
+drop `App.tsx`'s cached `Session` object, not just update state — the
+existing autosave tick (`persistActive()`) would otherwise write the
+stale in-memory save straight back over the file a parent just restored,
+silently undoing it. Caught before shipping, by actually running the
+scenario end to end (fresh device, download, wipe storage, restore) in a
+real browser rather than by unit-testing the pieces in isolation — the
+same category of gap as finding 15's Framer Motion bugs, a fixed suite
+only answers the questions it's asked, and "does this feature reach the
+person who needs it" isn't a question a component test knows to ask.
 
 ---
 

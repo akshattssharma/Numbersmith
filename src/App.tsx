@@ -58,6 +58,15 @@ export default function App() {
 
   const updateHousehold = (h: Household) => { saveHousehold(h); setHousehold(h); };
 
+  // A restore already wrote its own household + saves to storage (applyBackup),
+  // so this just needs to drop the cached Session — otherwise the next
+  // autosave tick would overwrite the just-restored save with the stale one
+  // still held in memory.
+  const restoreHousehold = (h: Household) => {
+    sessionRef.current = { id: null, session: null };
+    setHousehold(h);
+  };
+
   // First run: no children yet at all. One short setup, then straight into play.
   if (household.children.length === 0) {
     return (
@@ -71,6 +80,7 @@ export default function App() {
             const withChild = addChild(household, name, characterId);
             updateHousehold(setPin(withChild, pin));
           }}
+          onRestore={restoreHousehold}
         />
       </div>
     );
@@ -142,6 +152,7 @@ export default function App() {
         <KidsManager
           household={household}
           onChange={(h) => updateHousehold(h)}
+          onRestore={restoreHousehold}
           onSetPin={(pin) => updateHousehold(setPin(household, pin))}
         />
       )}
