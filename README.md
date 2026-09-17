@@ -55,6 +55,7 @@ diagnosis itself, deliberately; see [Safety](#safety-is-an-architecture-not-a-fi
 | **Household** | Kid mode vs. parent mode, a local PIN gate, and more than one child on the same device — each with their own progress, cast and favourites | [`household.ts`](src/engine/household.ts) |
 | **Durability** | A parent-initiated JSON backup of the whole household — no account, nothing sent anywhere — restorable from either the Kids tab or, since a fresh device has no children yet to reach that tab, the onboarding screen itself. See finding 19 | [`household.ts`](src/engine/household.ts), [`RestoreBackup.tsx`](src/components/RestoreBackup.tsx) |
 | **Mastery loop** | Once every one of the 14 concepts is mastered, the selector stops pretending there's still a frontier to push into and switches to honestly-labeled review, rotating by staleness; the parent view, constellation and Brain view all read the same `graphMastered()` rather than each guessing. See finding 20 | [`learnerModel.ts`](src/engine/learnerModel.ts), [`selector.ts`](src/engine/selector.ts) |
+| **Landing** | A one-screen introduction shown once, before onboarding, only while a device has zero children — pure copy and a single "Get started" decision, no engine import. See finding 21 | [`Landing.tsx`](src/screens/Landing.tsx) |
 
 ### Two screens, not one with a debug panel bolted on
 
@@ -454,6 +455,27 @@ separable: the loop that keeps a graduated child engaged doesn't need new
 material to justify existing, and building it revealed that the two
 follow-on fixes (an honest reason label, and telling the parent and child
 what actually happened) mattered more than any new mechanic would have.
+
+**21. A live app with zero introduction is a form, not a product.**
+Pasting the deployed URL dropped a first-time visitor straight onto
+"Welcome — who's playing?" — a name field, a character grid, and a PIN
+setup, with nothing above it explaining what the child's name was even
+for. That screen is correct as the second thing a parent sees; it is a
+bad first thing, because it assumes the decision to try the product has
+already been made. `Landing.tsx` is now that first thing: a short,
+honest description of what Numbersmith actually does (diagnoses the
+specific wrong rule behind a mistake, adapts the whole experience rather
+than a difficulty number, keeps everything on-device), and exactly one
+button. It is deliberately thin — no engine import, no state beyond "has
+this been dismissed this session" — because there is no pedagogy to a
+marketing screen; the decision it makes is binary, not diagnostic. The
+one thing it does *not* do is duplicate `Onboarding`'s restore-from-backup
+control: a returning parent on a new device still clicks through to
+`Onboarding` first, which already owns that path (finding 19). Shown once
+per session, gated on `household.children.length === 0` the same way
+`Onboarding` already was — so a household that empties its roster later
+skips straight back to `Onboarding` rather than re-explaining the product
+to someone who just used it.
 
 ---
 
