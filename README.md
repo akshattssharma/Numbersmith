@@ -501,6 +501,26 @@ ordinary empty roster (one child removed by mistake), a sign-out means
 the very next visitor to this browser may not be this family at all, and
 deserves the same introduction a first-time visitor gets.
 
+**23. A button that works and a button that looks broken can be the same
+button.** "Read the trace" on the Five Children screen was reported as
+doing nothing — clicking it produced no visible change at all. It
+wasn't broken: `onOpen` fired, state updated, and a full item-by-item
+trace plus the matching parent insights rendered exactly as designed.
+It rendered roughly 1,800 pixels below the button, though, past two
+other full-height sections ("Where the five journeys separate" and the
+personalization-lift table), with nothing to carry a viewer's eye that
+far — so from behind the button, the outcome was indistinguishable from
+nothing happening. The fix is two changes, not one: the detail panel
+now mounts immediately after the row of child cards instead of after
+everything else on the page, and a small wrapper re-fires
+`scrollIntoView({ behavior: 'smooth' })` on the persona id whenever a
+trace opens, so clicking a *different* child's button while one is
+already open still scrolls, not just the first click. Caught the same
+way findings 15 and 21 were — by actually clicking it in a real browser
+rather than trusting that "the state updates correctly" means "the
+feature works." A feature only a test suite has used is not yet a
+feature anyone else has used.
+
 ---
 
 ## Safety is an architecture, not a filter
