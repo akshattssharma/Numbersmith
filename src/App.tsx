@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { saveProfile, type PersonalProfile } from './engine/cast';
 import {
-  addChild, loadHousehold, loadChildSave, saveChildSave, saveHousehold, setPin,
+  addChild, loadHousehold, loadChildSave, resetHousehold, saveChildSave, saveHousehold, setPin,
   type ChildSave, type Household,
 } from './engine/household';
 import { Session } from './engine/session';
@@ -73,6 +73,19 @@ export default function App() {
   const restoreHousehold = (h: Household) => {
     sessionRef.current = { id: null, session: null };
     setHousehold(h);
+  };
+
+  // Distinct from restoreHousehold: a sign-out means a genuinely different
+  // family may pick this browser up next, so — unlike an ordinary empty
+  // roster from removing a mistaken entry — it's worth showing Landing
+  // again rather than dropping straight into Onboarding.
+  const signOut = () => {
+    const empty = resetHousehold(household);
+    sessionRef.current = { id: null, session: null };
+    setShowLanding(true);
+    setMode('kid');
+    setParentTab('kids');
+    setHousehold(empty);
   };
 
   // First run: no children yet at all. A brief introduction, then one short
@@ -170,6 +183,7 @@ export default function App() {
           onChange={(h) => updateHousehold(h)}
           onRestore={restoreHousehold}
           onSetPin={(pin) => updateHousehold(setPin(household, pin))}
+          onSignOut={signOut}
         />
       )}
       {parentTab === 'setup' && (

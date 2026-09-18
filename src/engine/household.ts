@@ -177,6 +177,22 @@ export function addChild(h: Household, name: string, characterId: string): House
   return { ...h, children: [...h.children, meta], activeChildId: h.activeChildId ?? id };
 }
 
+/**
+ * "Sign out": there are no accounts to sign out of, so what this actually
+ * means is handing the browser to a different family. Deletes every child's
+ * save (not just the household record, or the next `loadHousehold()` would
+ * still find them orphaned in storage) and drops the PIN along with them —
+ * a fresh family should never inherit the last one's lock. Irreversible
+ * unless a backup was taken first; the UI is expected to push that step
+ * hard before calling this, the same way it does for removing one child.
+ */
+export function resetHousehold(h: Household): Household {
+  for (const c of h.children) deleteChildSave(c.id);
+  const empty = emptyHousehold();
+  saveHousehold(empty);
+  return empty;
+}
+
 export function removeChild(h: Household, id: string): Household {
   deleteChildSave(id);
   const children = h.children.filter((c) => c.id !== id);

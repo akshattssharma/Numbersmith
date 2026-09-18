@@ -4,16 +4,17 @@ import { RestoreBackup } from '../components/RestoreBackup';
 import { CHARACTERS } from '../engine/avatars';
 import { normaliseName } from '../engine/cast';
 import {
-  addChild, exportBackup, removeChild, serializeBackup, switchActiveChild, type Household,
+  addChild, exportBackup, removeChild, resetHousehold, serializeBackup, switchActiveChild,
+  type Household,
 } from '../engine/household';
 
 /**
- * Parent-only. Who's playing, add another child, the PIN, and a backup — all
- * in one place, because these are the things a household actually needs to
- * manage and none of them belong anywhere a child can reach.
+ * Parent-only. Who's playing, add another child, the PIN, a backup, and
+ * signing out — all in one place, because these are the things a household
+ * actually needs to manage and none of them belong anywhere a child can reach.
  */
 export function KidsManager({
-  household, onChange, onRestore, onSetPin,
+  household, onChange, onRestore, onSetPin, onSignOut,
 }: {
   household: Household;
   onChange: (h: Household) => void;
@@ -22,6 +23,10 @@ export function KidsManager({
    *  with new state. */
   onRestore: (h: Household) => void;
   onSetPin: (pin: string) => void;
+  /** also distinct from onChange: a sign-out drops the cached Session AND
+   *  reintroduces the product from Landing, since a different family may be
+   *  the very next person to use this browser. */
+  onSignOut: () => void;
 }) {
   const [adding, setAdding] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
@@ -94,6 +99,7 @@ export function KidsManager({
 
       <PinCard household={household} onSetPin={onSetPin} />
       <BackupCard household={household} onRestore={onRestore} />
+      <SignOutCard household={household} onSignOut={onSignOut} />
     </div>
   );
 }
@@ -124,6 +130,45 @@ function BackupCard({ household, onRestore }: { household: Household; onRestore:
         </button>
       </div>
       <RestoreBackup currentChildren={household.children.map((c) => c.name)} onRestore={onRestore} />
+    </div>
+  );
+}
+
+function SignOutCard({ household, onSignOut }: { household: Household; onSignOut: () => void }) {
+  const [confirming, setConfirming] = useState(false);
+  const names = household.children.map((c) => c.name).join(', ');
+
+  return (
+    <div className="card">
+      <h2>Sign out</h2>
+      <p className="small muted" style={{ marginTop: -6 }}>
+        There's no account to sign out of — this clears every child and the PIN from this browser
+        so someone else can set up their own family here instead.
+      </p>
+      {!confirming ? (
+        <button className="btn ghost tiny" onClick={() => setConfirming(true)}>Sign out</button>
+      ) : (
+        <div className="insight" style={{ borderColor: 'var(--bad)' }}>
+          <b>Remove {names || 'everyone'} from this browser?</b>
+          <p>
+            All their progress goes with them, right now, on this device — there's no undo unless
+            you have a backup file already.
+          </p>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className="btn ghost tiny" onClick={() => downloadBackup(household)}>
+              Download a backup first
+            </button>
+            <button
+              className="btn tiny"
+              style={{ borderColor: 'var(--bad)', color: 'var(--bad)' }}
+              onClick={onSignOut}
+            >
+              Yes, sign out
+            </button>
+            <button className="btn ghost tiny" onClick={() => setConfirming(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
