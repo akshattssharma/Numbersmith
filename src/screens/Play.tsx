@@ -65,7 +65,7 @@ export function Play({
   const [burst, setBurst] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
   const [showProgress, setShowProgress] = useState(false);
-  const [masteryBanner, setMasteryBanner] = useState<string | null>(null);
+  const [masteryBanner, setMasteryBanner] = useState<{ headline: string; body: string } | null>(null);
   const [flights, setFlights] = useState<
     { id: number; from: { x: number; y: number }; to: { x: number; y: number }; icon: string; big?: boolean }[]
   >([]);
@@ -165,14 +165,25 @@ export function Play({
         }
       }
     }
-    if (res.newlyMastered) {
-      const label = CONCEPTS[res.newlyMastered].label;
-      setMasteryBanner(label);
-      setTimeout(() => setMasteryBanner((m) => (m === label ? null : m)), 3200);
+    if (res.graphCompleted) {
+      // The biggest event the engine produces, so it gets the longest-lived
+      // banner and overrides any single-concept one queued the same instant
+      // (recordAttempt() can cross both thresholds on the same attempt when
+      // this is the very last concept in the graph to reach mastery).
+      const banner = {
+        headline: 'Every skill mastered!',
+        body: 'The whole sky is lit — every concept in Numbersmith, mastered.',
+      };
+      setMasteryBanner(banner);
+      setTimeout(() => setMasteryBanner((m) => (m === banner ? null : m)), 4200);
+    } else if (res.newlyMastered) {
+      const banner = { headline: 'New skill unlocked!', body: CONCEPTS[res.newlyMastered].label };
+      setMasteryBanner(banner);
+      setTimeout(() => setMasteryBanner((m) => (m === banner ? null : m)), 3200);
     }
-    if (res.collectionGained || res.newlyMastered) {
+    if (res.collectionGained || res.newlyMastered || res.graphCompleted) {
       setCelebrate(true);
-      setTimeout(() => setCelebrate(false), 1400);
+      setTimeout(() => setCelebrate(false), res.graphCompleted ? 2200 : 1400);
     }
 
     if (turn.challengeDoorOffered && !res.attempt.correct) setDoorOpen(true);
@@ -400,8 +411,8 @@ export function Play({
 
       {masteryBanner && (
         <div className="masterybanner">
-          <b>New skill unlocked!</b>
-          <p>{masteryBanner}</p>
+          <b>{masteryBanner.headline}</b>
+          <p>{masteryBanner.body}</p>
         </div>
       )}
 

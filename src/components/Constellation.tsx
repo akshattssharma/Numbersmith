@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ALL_CONCEPTS, CONCEPTS } from '../engine/conceptGraph';
-import { isReady, mastery } from '../engine/learnerModel';
+import { graphMastered, isReady, mastery } from '../engine/learnerModel';
 import type { ConceptId, LearnerModel } from '../engine/types';
 
 /**
@@ -56,9 +56,11 @@ function pos(c: ConceptId) {
 export function Constellation({ model }: { model: LearnerModel }) {
   const [openId, setOpenId] = useState<ConceptId | null>(null);
   const visible = new Set(ALL_CONCEPTS.filter((c) => isReady(model, c)));
+  const complete = graphMastered(model);
 
   return (
     <div className="constellation-wrap">
+      {complete && <p className="constellation-complete">Every star is lit — every skill mastered!</p>}
       <svg viewBox="-10 0 460 420" className="constellation-svg">
         {ALL_CONCEPTS.flatMap((c) =>
           CONCEPTS[c].prereqs

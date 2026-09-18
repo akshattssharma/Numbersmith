@@ -128,6 +128,13 @@ export function isReady(m: LearnerModel, c: ConceptId): boolean {
   return CONCEPTS[c].prereqs.every((p) => mastery(m, p) >= 0.6);
 }
 
+/** True once every one of the 14 concepts is mastered — the one place this
+ *  gets to be decided, so the selector, the session's transition detection,
+ *  the constellation and the parent view all agree on the same moment. */
+export function graphMastered(m: LearnerModel): boolean {
+  return ALL_CONCEPTS.every((c) => mastery(m, c) >= 0.85);
+}
+
 /* ---------------------------------------------------------------- diagnosis */
 
 /** Median latency the child has shown on this concept, for calibration. */

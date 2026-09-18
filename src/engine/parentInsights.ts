@@ -1,5 +1,5 @@
 import { CONCEPTS } from './conceptGraph';
-import { mastery, bugConcepts } from './learnerModel';
+import { graphMastered, mastery, bugConcepts } from './learnerModel';
 import { MISCONCEPTIONS } from './misconceptions';
 import { unlockedFrontier, pickFrontier } from './selector';
 import type { LearnerModel, MisconceptionId, Representation } from './types';
@@ -29,9 +29,25 @@ const pct = (x: number) => `${Math.round(x * 100)}%`;
 export function generateInsights(m: LearnerModel): Insight[] {
   const out: Insight[] = [];
   const name = m.name;
+  const complete = graphMastered(m);
+
+  /* --- the whole curriculum, mastered: the single biggest thing to say --
+     Same 'progress' kind as the ordinary "gained a skill" insight below, on
+     purpose — it's what "What did they learn this week?" reads off, and this
+     is the same question with the biggest possible answer. Placed first,
+     and the ordinary week-over-week insight is suppressed rather than run
+     alongside it: once nothing is left to gain, restating the same fact in
+     smaller terms is filler, not a second insight. */
+  if (complete) {
+    out.push({
+      kind: 'progress',
+      headline: `${name} has mastered every skill currently in Numbersmith.`,
+      body: `All 14 concepts — from number sense through multiplication foundations — are holding steady across real practice, not just a lucky run. From here the game shifts from teaching to upkeep: it keeps rotating through all of them by how long it has been since each was last seen, so nothing quietly fades, rather than serving anything new. More content is on the way.`,
+    });
+  }
 
   /* --- what changed this week: the thing parents actually want ---------- */
-  const gained = Object.entries(m.concepts)
+  const gained = complete ? undefined : Object.entries(m.concepts)
     .filter(([c, s]) => s.attempts >= 3 && mastery(m, c as any) > 0.75)
     .sort((a, b) => b[1].attempts - a[1].attempts)[0];
   if (gained) {
@@ -165,6 +181,14 @@ function realWorldActivity(m: LearnerModel): Insight {
     };
   }
 
+  if (graphMastered(m)) {
+    return {
+      kind: 'activity',
+      headline: 'Something to try this week, five minutes, no screen.',
+      body: `Every skill in the game is mastered for now, so there is nothing specific to target — any real number in daily life is fair practice. Split a snack evenly, count change, double a recipe, and let them do the working out loud.`,
+    };
+  }
+
   const front = pickFrontier(m);
   return {
     kind: 'activity',
@@ -175,6 +199,9 @@ function realWorldActivity(m: LearnerModel): Insight {
 
 /** The one-line answer to "is my child behind?", phrased so it cannot frighten. */
 export function progressFraming(m: LearnerModel): string {
+  if (graphMastered(m)) {
+    return `${m.name} has completed every skill currently in Numbersmith. The game is now in review mode, rotating through all 14 concepts to keep them sharp rather than teaching something new — more content is on the way.`;
+  }
   const front = pickFrontier(m);
   const ready = unlockedFrontier(m).length;
   return `${m.name} is working at ${CONCEPTS[front].grade} level on ${CONCEPTS[front].label.toLowerCase()}, with ${ready} skill${ready === 1 ? '' : 's'} currently open to them. Children move through these in very different orders, and the order matters far less than whether each one is understood rather than memorised.`;

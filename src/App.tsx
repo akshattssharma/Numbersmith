@@ -8,6 +8,7 @@ import { Session } from './engine/session';
 import { BrainView } from './screens/BrainView';
 import { FiveChildren } from './screens/FiveChildren';
 import { KidsManager } from './screens/KidsManager';
+import { Landing } from './screens/Landing';
 import { Onboarding } from './screens/Onboarding';
 import { ParentGate } from './screens/ParentGate';
 import { ParentView } from './screens/ParentView';
@@ -31,6 +32,13 @@ export default function App() {
   const [mode, setMode] = useState<Mode>('kid');
   const [parentTab, setParentTab] = useState<ParentTab>('kids');
   const [, force] = useState(0);
+  // Shown once, before Onboarding, only while there are no children yet —
+  // pasting the bare URL used to land straight on "who's playing?", which
+  // reads as a form with no introduction. Flips false for the rest of the
+  // session the moment "Get started" is clicked, so removing every child
+  // later drops a returning parent straight back into Onboarding instead
+  // of re-explaining the product to someone who just used it.
+  const [showLanding, setShowLanding] = useState(true);
 
   const activeId = household.activeChildId;
   const activeMeta = household.children.find((c) => c.id === activeId);
@@ -58,8 +66,25 @@ export default function App() {
 
   const updateHousehold = (h: Household) => { saveHousehold(h); setHousehold(h); };
 
-  // First run: no children yet at all. One short setup, then straight into play.
+  // A restore already wrote its own household + saves to storage (applyBackup),
+  // so this just needs to drop the cached Session — otherwise the next
+  // autosave tick would overwrite the just-restored save with the stale one
+  // still held in memory.
+  const restoreHousehold = (h: Household) => {
+    sessionRef.current = { id: null, session: null };
+    setHousehold(h);
+  };
+
+  // First run: no children yet at all. A brief introduction, then one short
+  // setup, then straight into play.
   if (household.children.length === 0) {
+    if (showLanding) {
+      return (
+        <div className="app landing-app">
+          <Landing onGetStarted={() => setShowLanding(false)} />
+        </div>
+      );
+    }
     return (
       <div className="app onboard-app">
         <header className="masthead">
@@ -71,6 +96,7 @@ export default function App() {
             const withChild = addChild(household, name, characterId);
             updateHousehold(setPin(withChild, pin));
           }}
+          onRestore={restoreHousehold}
         />
       </div>
     );
@@ -142,6 +168,7 @@ export default function App() {
         <KidsManager
           household={household}
           onChange={(h) => updateHousehold(h)}
+          onRestore={restoreHousehold}
           onSetPin={(pin) => updateHousehold(setPin(household, pin))}
         />
       )}

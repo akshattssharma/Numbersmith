@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { bktUpdate, createLearner, diagnose, mastery, recordAttempt, blockingPrereq } from '../learnerModel';
+import { bktUpdate, createLearner, diagnose, graphMastered, mastery, recordAttempt, blockingPrereq } from '../learnerModel';
+import { ALL_CONCEPTS } from '../conceptGraph';
 import type { Attempt, Problem } from '../types';
 
 const learner = () => createLearner('t', 'Test');
@@ -117,5 +118,37 @@ describe('mastery accounting', () => {
     expect(blocked).not.toBeNull();
     // should point upstream, not at the concept itself
     expect(blocked).not.toBe('sub-2digit-borrow');
+  });
+});
+
+describe('graphMastered: the whole curriculum, not just one concept', () => {
+  it('is false for a brand-new learner', () => {
+    expect(graphMastered(learner())).toBe(false);
+  });
+
+  it('is false while even one concept sits below the mastery threshold', () => {
+    const m = learner();
+    ALL_CONCEPTS.forEach((c) => { m.concepts[c].pKnow = 0.95; });
+    m.concepts[ALL_CONCEPTS[0]].pKnow = 0.5;
+    expect(graphMastered(m)).toBe(false);
+  });
+
+  it('is true only once every concept has crossed the threshold', () => {
+    const m = learner();
+    ALL_CONCEPTS.forEach((c) => { m.concepts[c].pKnow = 0.95; });
+    expect(graphMastered(m)).toBe(true);
+  });
+
+  it('stays false if a live misconception caps one concept below mastery, even at a high pKnow', () => {
+    let m = learner();
+    ALL_CONCEPTS.forEach((c) => { m.concepts[c].pKnow = 0.95; });
+    for (let i = 0; i < 2; i++) {
+      m = recordAttempt(m, prob(), attempt(), {
+        errorClass: 'misconception', misconception: 'sub-smaller-from-larger', confidence: 0.7, reading: '',
+      });
+    }
+    ALL_CONCEPTS.forEach((c) => { m.concepts[c].pKnow = 0.95; });
+    expect(m.misconceptions['sub-smaller-from-larger']?.status).toBe('confirmed');
+    expect(graphMastered(m)).toBe(false);
   });
 });

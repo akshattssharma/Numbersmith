@@ -1,7 +1,7 @@
 import { engagementScore, recordEngagement, defaultProfile, type PersonalProfile } from './cast';
 import { companionLine, type Line } from './companion';
 import { chooseIntervention, logIntervention, type Intervention } from './interventions';
-import { createLearner, diagnose, isReady, mastery, recordAttempt, recordChallengeDoor, recordWorldEngagement } from './learnerModel';
+import { createLearner, diagnose, graphMastered, isReady, mastery, recordAttempt, recordChallengeDoor, recordWorldEngagement } from './learnerModel';
 import { unlockedBy } from './conceptGraph';
 import { generate, makeRng } from './problemGen';
 import { advanceQuest, isLastQuestItem, startQuest, type QuestState } from './quest';
@@ -49,6 +49,12 @@ export interface TurnResult {
   /** set only on the item that concluded a quest, naming which world's
    *  collection just grew */
   collectionGained?: WorldId;
+  /** true only on the single attempt that carried the last unmastered
+   *  concept over the threshold — the whole 14-concept graph just became
+   *  mastered for the first time. The biggest event this engine produces,
+   *  and the moment the session quietly shifts from teaching to upkeep
+   *  (see selector.ts's 'mastery-review' tier). */
+  graphCompleted: boolean;
 }
 
 export class Session {
@@ -360,12 +366,14 @@ export class Session {
     const beforeMastery = mastery(this.model, p.concept);
     const dependents = unlockedBy(p.concept);
     const readyBefore = new Set(dependents.filter((c) => isReady(this.model, c)));
+    const graphMasteredBefore = graphMastered(this.model);
 
     const diagnosis = diagnose(this.model, p, given, attempt);
     this.model = recordAttempt(this.model, p, attempt, diagnosis);
 
     const newlyMastered = beforeMastery < 0.85 && mastery(this.model, p.concept) >= 0.85 ? p.concept : undefined;
     const newlyReady = dependents.filter((c) => !readyBefore.has(c) && isReady(this.model, c));
+    const graphCompleted = !graphMasteredBefore && graphMastered(this.model);
 
     // Close the control loop. Without this the controller never finds out that
     // its own success model is optimistic, and quietly parks the child well
@@ -468,6 +476,7 @@ export class Session {
     return {
       attempt, diagnosis, model: this.model, line,
       newlyMastered, newlyReady, starsEarned: correct ? 1 : 0, collectionGained,
+      graphCompleted,
     };
   }
 

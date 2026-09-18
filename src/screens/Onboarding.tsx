@@ -1,17 +1,25 @@
 import { useState } from 'react';
 import { Avatar } from '../components/Avatar';
+import { RestoreBackup } from '../components/RestoreBackup';
 import { CHARACTERS } from '../engine/avatars';
 import { normaliseName } from '../engine/cast';
+import type { Household } from '../engine/household';
 
 /**
  * The very first screen, ever. One child, one PIN, then straight into the
  * game — everything else (more children, the cast, favourites) can be added
  * later from the parent side without ever blocking play.
+ *
+ * Also the only place a device with zero children can reach a restore: the
+ * app shows this screen unconditionally whenever household.children is
+ * empty, so "carry your backup to a new device" has to start here, not in
+ * the Kids tab a fresh device can't get to yet.
  */
 export function Onboarding({
-  onComplete,
+  onComplete, onRestore,
 }: {
   onComplete: (childName: string, characterId: string, pin: string) => void;
+  onRestore: (h: Household) => void;
 }) {
   const [step, setStep] = useState<'child' | 'pin'>('child');
   const [name, setName] = useState('');
@@ -57,6 +65,13 @@ export function Onboarding({
         <button className="btn primary" disabled={!clean} onClick={() => setStep('pin')}>
           Next
         </button>
+
+        <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid var(--line)' }}>
+          <p className="tiny muted" style={{ marginTop: 0, marginBottom: 8 }}>
+            Setting up on a new device? Restore a backup from another one instead of starting over.
+          </p>
+          <RestoreBackup currentChildren={[]} onRestore={onRestore} />
+        </div>
       </div>
     );
   }

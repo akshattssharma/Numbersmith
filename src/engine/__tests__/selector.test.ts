@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { ALL_CONCEPTS } from '../conceptGraph';
 import { createLearner } from '../learnerModel';
 import { makeRng } from '../problemGen';
-import { pickFrontier, selectNext } from '../selector';
+import { pickFrontier, selectNext, strongestConcept } from '../selector';
 import type { ChallengeKind, ConceptId } from '../types';
 
 /**
@@ -79,5 +80,120 @@ describe('pickFrontier: after the whole graph is mastered', () => {
     m.concepts[stalest].lastSeen = now - 999_000;
 
     expect(pickFrontier(m)).toBe(stalest);
+  });
+});
+
+/**
+ * Found by running the five-children simulation, not by inspection: the
+ * "designed win" at a quest's end scored 19% real accuracy against an
+ * intended ~88%, because its difficulty was inverted from the engine's own
+ * *belief* (pKnow) rather than anything about how a child's real success
+ * actually falls off with difficulty — and belief rising toward mastery
+ * made it pick a *harder* item, exactly backwards. Confirmed-win and
+ * quest-win also shared a second bug: strongestConcept() ranked by raw
+ * mastery alone, which could crown a concept attempted once and gotten
+ * lucky on, or — worse — one drilled hard because of a live misconception,
+ * whose capped-but-still-highest score could still win the ranking.
+ */
+describe('the quest-win designed win: flat difficulty, not belief-scaled', () => {
+  it('stays at the same low difficulty whether mastery is barely there or maxed out', () => {
+    const low = createLearner('t', 'Test');
+    low.concepts['number-sense'].pKnow = 0.6;
+    low.concepts['number-sense'].attempts = 5;
+    const selLow = selectNext(low, {
+      rng: makeRng(1), difficulty: 0.3, now: Date.now(), itemIndex: 20, questWin: true,
+    });
+
+    const high = createLearner('t', 'Test');
+    high.concepts['number-sense'].pKnow = 0.99;
+    high.concepts['number-sense'].attempts = 5;
+    const selHigh = selectNext(high, {
+      rng: makeRng(1), difficulty: 0.3, now: Date.now(), itemIndex: 20, questWin: true,
+    });
+
+    expect(selLow.reason).toBe('quest-win');
+    expect(selHigh.reason).toBe('quest-win');
+    // The old bug: a near-mastered concept got a *harder* item to hold a
+    // constant predicted-success target. Flat difficulty means these match.
+    expect(selHigh.problem.difficulty).toBe(selLow.problem.difficulty);
+    expect(selHigh.problem.difficulty).toBeLessThan(0.3);
+  });
+});
+
+describe('strongestConcept: a real champion, not a lucky or bugged one', () => {
+  it('prefers a concept attempted enough times over one with higher pKnow but almost no attempts', () => {
+    const m = createLearner('t', 'Test');
+    m.concepts['number-sense'].pKnow = 0.95;
+    m.concepts['number-sense'].attempts = 1; // one lucky guess
+    m.concepts['counting-on'].pKnow = 0.75;
+    m.concepts['counting-on'].attempts = 8; // genuinely demonstrated
+
+    expect(strongestConcept(m)).toBe('counting-on');
+  });
+
+  it('skips a concept with a live misconception even if nothing else has higher mastery', () => {
+    const m = createLearner('t', 'Test');
+    m.concepts['sub-2digit-borrow'].pKnow = 0.9;
+    m.concepts['sub-2digit-borrow'].attempts = 10;
+    m.misconceptions['sub-smaller-from-larger'] = {
+      fires: 3, lastFired: Date.now(), confidence: 0.9, status: 'suspected', interventions: [],
+    };
+    m.concepts['counting-on'].pKnow = 0.7;
+    m.concepts['counting-on'].attempts = 8;
+
+    expect(strongestConcept(m)).toBe('counting-on');
+  });
+
+  it('still returns a concept for a brand-new learner with no attempts anywhere', () => {
+    const m = createLearner('t', 'Test');
+    expect(() => strongestConcept(m)).not.toThrow();
+    expect(typeof strongestConcept(m)).toBe('string');
+  });
+});
+
+describe('mastery-review: the whole graph mastered, this is upkeep not instruction', () => {
+  function fullyMasteredLearner() {
+    const m = createLearner('t', 'Test');
+    const now = Date.now();
+    ALL_CONCEPTS.forEach((c, i) => {
+      m.concepts[c].pKnow = 0.95;
+      m.concepts[c].attempts = 10;
+      m.concepts[c].lastSeen = now - i * 1000;
+    });
+    // Enough history on every representation that the thin-surface probe
+    // (an earlier, higher-priority tier) never fires here, so this test
+    // isn't at the mercy of its rng gate.
+    (['manipulative', 'symbolic', 'story'] as const).forEach((r) => {
+      for (let i = 0; i < 15; i++) {
+        m.history.push({
+          problemId: `p-${r}-${i}`, concept: 'number-sense', representation: r,
+          given: 1, correct: true, difficulty: 0.3, latencyMs: 1000,
+          hintsUsed: 0, churn: 0, abandoned: false, at: now,
+        });
+      }
+    });
+    const stalest = ALL_CONCEPTS[ALL_CONCEPTS.length - 1];
+    m.concepts[stalest].lastSeen = now - 999_000;
+    return { m, stalest };
+  }
+
+  it('serves a review item on the most overdue concept, honestly labeled', () => {
+    const { m, stalest } = fullyMasteredLearner();
+    const sel = selectNext(m, { rng: makeRng(1), difficulty: 0.5, now: Date.now(), itemIndex: 50 });
+    expect(sel.reason).toBe('mastery-review');
+    expect(sel.concept).toBe(stalest);
+  });
+
+  it('rotates to a different concept once the stalest one has just been served', () => {
+    const { m, stalest } = fullyMasteredLearner();
+    const first = selectNext(m, { rng: makeRng(1), difficulty: 0.5, now: Date.now(), itemIndex: 50 });
+    expect(first.concept).toBe(stalest);
+
+    // The same effect answering it would have: lastSeen jumps to now, so it
+    // is no longer the most overdue concept in the graph.
+    m.concepts[stalest].lastSeen = Date.now();
+    const second = selectNext(m, { rng: makeRng(1), difficulty: 0.5, now: Date.now(), itemIndex: 51 });
+    expect(second.reason).toBe('mastery-review');
+    expect(second.concept).not.toBe(stalest);
   });
 });

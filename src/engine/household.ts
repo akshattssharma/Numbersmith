@@ -195,3 +195,71 @@ export function setPin(h: Household, pin: string): Household {
 export function checkPin(h: Household, guess: string): boolean {
   return !!h.pin && h.pin === guess;
 }
+
+/**
+ * Durability, kept to the same "nothing leaves the device" rule as
+ * everything else here: a parent-initiated file, not an account. There is no
+ * server to lose the browser's storage for you, so the only backup a family
+ * gets is one they take themselves — export to a JSON file, carry it to a
+ * new device or browser profile, import it back. The whole household in one
+ * file, not just the active child, since a parent backing up before clearing
+ * their browser cares about every child's progress, not just whoever was
+ * playing last.
+ */
+
+export interface Backup {
+  version: 1;
+  exportedAt: number;
+  household: Household;
+  /** every child's save, keyed by ChildMeta.id — not just the active one */
+  children: Record<string, ChildSave>;
+}
+
+export function exportBackup(h: Household): Backup {
+  const children: Record<string, ChildSave> = {};
+  for (const c of h.children) children[c.id] = loadChildSave(c.id, c.name);
+  return { version: 1, exportedAt: Date.now(), household: h, children };
+}
+
+export function serializeBackup(b: Backup): string {
+  return JSON.stringify(b, null, 2);
+}
+
+/** Never throws — a hand-edited or foreign file is just rejected, the same
+ *  way a corrupt localStorage value falls through to a fresh state elsewhere
+ *  in this module. */
+export function parseBackup(json: string): Backup | null {
+  try {
+    const parsed = JSON.parse(json);
+    if (
+      !parsed || typeof parsed !== 'object'
+      || parsed.version !== 1
+      || !parsed.household || typeof parsed.household !== 'object'
+      || !Array.isArray(parsed.household.children)
+      || !parsed.children || typeof parsed.children !== 'object'
+    ) {
+      return null;
+    }
+    return parsed as Backup;
+  } catch {
+    return null;
+  }
+}
+
+/** Writes every child save and the household record it points to, then
+ *  returns the household so the caller can adopt it as current state. A
+ *  restore replaces this device's household outright — it is a recovery
+ *  action, not a merge. activeChildId is re-checked against the restored
+ *  roster rather than trusted verbatim, the same defensiveness removeChild
+ *  already applies — a hand-edited file could point it at nobody. */
+export function applyBackup(b: Backup): Household {
+  for (const [id, save] of Object.entries(b.children)) saveChildSave(id, save);
+  const valid = b.household.activeChildId
+    && b.household.children.some((c) => c.id === b.household.activeChildId);
+  const household: Household = {
+    ...b.household,
+    activeChildId: valid ? b.household.activeChildId : (b.household.children[0]?.id ?? null),
+  };
+  saveHousehold(household);
+  return household;
+}

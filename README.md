@@ -53,6 +53,9 @@ diagnosis itself, deliberately; see [Safety](#safety-is-an-architecture-not-a-fi
 | **Parent insights** | Plain-language findings and an off-screen activity. No accuracy percentage anywhere | [`parentInsights.ts`](src/engine/parentInsights.ts) |
 | **Personalization** | The child's friends and favourite things woven into problems — gated by the learner model, with a control holdout to check it works | [`cast.ts`](src/engine/cast.ts), [`storyTemplates.ts`](src/engine/storyTemplates.ts) |
 | **Household** | Kid mode vs. parent mode, a local PIN gate, and more than one child on the same device — each with their own progress, cast and favourites | [`household.ts`](src/engine/household.ts) |
+| **Durability** | A parent-initiated JSON backup of the whole household — no account, nothing sent anywhere — restorable from either the Kids tab or, since a fresh device has no children yet to reach that tab, the onboarding screen itself. See finding 19 | [`household.ts`](src/engine/household.ts), [`RestoreBackup.tsx`](src/components/RestoreBackup.tsx) |
+| **Mastery loop** | Once every one of the 14 concepts is mastered, the selector stops pretending there's still a frontier to push into and switches to honestly-labeled review, rotating by staleness; the parent view, constellation and Brain view all read the same `graphMastered()` rather than each guessing. See finding 20 | [`learnerModel.ts`](src/engine/learnerModel.ts), [`selector.ts`](src/engine/selector.ts) |
+| **Landing** | A one-screen introduction shown once, before onboarding, only while a device has zero children — pure copy and a single "Get started" decision, no engine import. See finding 21 | [`Landing.tsx`](src/screens/Landing.tsx) |
 
 ### Two screens, not one with a debug panel bolted on
 
@@ -354,6 +357,125 @@ the next item loads. Same lesson as finding 14, from the opposite
 direction: a fixed test suite didn't catch this because nothing was
 asserting on it, and this time neither did silently reading the screen —
 it took someone actually listening.
+
+**18. A "designed win" that scales with belief isn't designed, and isn't a
+win.** Finding 9 recorded the 80% target as structurally out of reach and
+moved on — but the two mechanics built specifically to *guarantee* a
+success (`quest-win`, the last item of every quest, and `confidence-win`,
+fired by the struggle controller for a child who needs one) were never
+checked against how a simulated child actually answers, only against the
+engine's own belief about them. `questWinDifficulty()` picked a difficulty
+by solving `expectedSuccess(pKnow, difficulty) = 0.88` for whatever `pKnow`
+the engine currently believed — so as belief in mastery rose, the item got
+*harder*, exactly backwards, because `expectedSuccess()` is the engine's
+model of the child, not the child. Running the five-children simulation
+and comparing the engine's predicted success against each persona's own
+(BKT-independent) response formula for their actual quest-win items showed
+the gap directly: real accuracy on quest-win items was 19% against an
+intended ~88%. The fix drops the belief-scaling entirely — quest-win now
+always asks at a flat, low difficulty (0.10), the same shape confidence-win
+already used at 0.05, both now justified by having swept candidate flat
+values against every persona's real response formula rather than picked by
+feel. That surfaced a second, older bug shared by both mechanics:
+`strongestConcept()`, which picks *which* concept gets the guaranteed-easy
+item, ranked by raw mastery alone — capable of crowning a concept attempted
+once and gotten lucky on (BKT's `guess` parameter can inflate `pKnow` fast
+on thin evidence), or worse, a concept drilled hard because of a live
+misconception, whose capped-but-still-highest score could still top the
+ranking. Sam — the persona with a confirmed subtraction bug — was the
+clearest case: her designed wins kept landing on the buggy concept itself.
+`strongestConcept()` now requires at least 5 attempts before a concept is
+eligible, excludes any concept touched by an unresolved misconception
+(suspected, confirmed, or still resolving — not just confirmed, since the
+skew showed up before confidence reached that bar), and falls back to an
+absolute mastery floor of 0.6 when enough seasoned concepts exist to
+choose one. Pooled quest-win accuracy went from 19% to 52% (Maya 17%→80%,
+Alex 40%→75%, Riley 0%→40%, Nia 33%→50%); Sam's held near 0% on a small
+sample, which is the mechanic correctly refusing to hand her a win on a
+concept she hasn't actually earned yet, not a residual bug. That refusal
+shows up in the divergence test too: Sam's overall session accuracy sits
+right at 30%, the band's new floor — one persona legitimately paying for
+not getting a rigged win the other four still get. This is the same
+lesson as finding 9 from a sharper angle: a percentage nobody checked
+against real behavior isn't evidence of anything, guaranteed or not.
+
+**19. A restore feature that only lives where you already have progress
+can't do the one thing it exists for.** Durability here means one thing
+honestly: everything lives only in this browser's `localStorage`, so the
+only backup a family gets is one they take themselves — a parent-initiated
+JSON file, no account, nothing sent anywhere, restorable on another device.
+The first version built the whole thing as a card in the Kids tab of the
+parent view: download a backup, restore one, done. It worked, and it also
+missed the actual scenario the feature exists for. `App.tsx` shows
+`Onboarding` unconditionally whenever `household.children.length === 0` —
+which is exactly the state of a brand-new device or a browser profile
+that just got cleared, and there is no path from that screen into the
+parent view at all, because there's no child yet to build a `Session`
+around. A parent arriving at a fresh install with their old backup file
+in hand would have hit "Welcome — who's playing?" with nowhere to put it.
+The fix pulled the restore half of the feature (file picker, parse,
+confirm-and-overwrite) out into its own component, `RestoreBackup.tsx`,
+so it could be mounted twice: once in the Kids tab for a parent tidying
+up an existing device, and once on `Onboarding`'s first screen for
+exactly the "new device" case, with the overwrite warning simply omitted
+when there's nothing yet to overwrite. Restoring a household also has to
+drop `App.tsx`'s cached `Session` object, not just update state — the
+existing autosave tick (`persistActive()`) would otherwise write the
+stale in-memory save straight back over the file a parent just restored,
+silently undoing it. Caught before shipping, by actually running the
+scenario end to end (fresh device, download, wipe storage, restore) in a
+real browser rather than by unit-testing the pieces in isolation — the
+same category of gap as finding 15's Framer Motion bugs, a fixed suite
+only answers the questions it's asked, and "does this feature reach the
+person who needs it" isn't a question a component test knows to ask.
+
+**20. Finishing the curriculum was already possible; the engine just lied
+about it.** Nothing stopped a child from mastering all 14 concepts —
+`pickFrontier()` already had a staleness-rotation fallback for exactly that
+case (added when finding it silently defaulted to the same concept
+forever). What it didn't have was honesty about what was happening next:
+once every concept crossed 0.85, the selector kept reporting `'frontier'`
+and rationale text like "Prerequisites are in place... pushing forward at
+difficulty 0.50" for a concept that had nothing left to push into — the
+same shape of bug finding 17 fixed for the companion line, just aimed at
+the Brain view instead of a child's ear. There was also no acknowledgment
+anywhere else: the parent view kept naming a "frontier" concept as if
+something new were still being taught, and the constellation, kid- or
+parent-facing, gave a fully-lit sky no different treatment than a sky with
+one star left dim. Asked to design an endgame, the honest scope turned out
+to be smaller than "endgame" suggests: the review mechanism already
+existed and didn't need reinventing, it needed to stop pretending to be
+something else. `graphMastered()` (`learnerModel.ts`) is now the one place
+that question gets answered, and `selectNext()`'s new `'mastery-review'`
+tier, `parentInsights.ts`, `Constellation.tsx` and `TurnResult.graphCompleted`
+all read it rather than each quietly re-deriving their own guess. New
+curriculum content (fractions, geometry) stays out of scope on purpose —
+"mastery loop now, content later" was the explicit brief, and the two are
+separable: the loop that keeps a graduated child engaged doesn't need new
+material to justify existing, and building it revealed that the two
+follow-on fixes (an honest reason label, and telling the parent and child
+what actually happened) mattered more than any new mechanic would have.
+
+**21. A live app with zero introduction is a form, not a product.**
+Pasting the deployed URL dropped a first-time visitor straight onto
+"Welcome — who's playing?" — a name field, a character grid, and a PIN
+setup, with nothing above it explaining what the child's name was even
+for. That screen is correct as the second thing a parent sees; it is a
+bad first thing, because it assumes the decision to try the product has
+already been made. `Landing.tsx` is now that first thing: a short,
+honest description of what Numbersmith actually does (diagnoses the
+specific wrong rule behind a mistake, adapts the whole experience rather
+than a difficulty number, keeps everything on-device), and exactly one
+button. It is deliberately thin — no engine import, no state beyond "has
+this been dismissed this session" — because there is no pedagogy to a
+marketing screen; the decision it makes is binary, not diagnostic. The
+one thing it does *not* do is duplicate `Onboarding`'s restore-from-backup
+control: a returning parent on a new device still clicks through to
+`Onboarding` first, which already owns that path (finding 19). Shown once
+per session, gated on `household.children.length === 0` the same way
+`Onboarding` already was — so a household that empties its roster later
+skips straight back to `Onboarding` rather than re-explaining the product
+to someone who just used it.
 
 ---
 

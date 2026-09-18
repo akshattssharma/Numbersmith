@@ -1,19 +1,26 @@
 import { useState } from 'react';
 import { Avatar } from '../components/Avatar';
+import { RestoreBackup } from '../components/RestoreBackup';
 import { CHARACTERS } from '../engine/avatars';
 import { normaliseName } from '../engine/cast';
-import { addChild, removeChild, switchActiveChild, type Household } from '../engine/household';
+import {
+  addChild, exportBackup, removeChild, serializeBackup, switchActiveChild, type Household,
+} from '../engine/household';
 
 /**
- * Parent-only. Who's playing, add another child, and the PIN — all in one
- * place, because these are the three things a household actually needs to
+ * Parent-only. Who's playing, add another child, the PIN, and a backup — all
+ * in one place, because these are the things a household actually needs to
  * manage and none of them belong anywhere a child can reach.
  */
 export function KidsManager({
-  household, onChange, onSetPin,
+  household, onChange, onRestore, onSetPin,
 }: {
   household: Household;
   onChange: (h: Household) => void;
+  /** distinct from onChange: a restore replaces the household wholesale and
+   *  the caller needs to know to drop any cached Session, not just re-render
+   *  with new state. */
+  onRestore: (h: Household) => void;
   onSetPin: (pin: string) => void;
 }) {
   const [adding, setAdding] = useState(false);
@@ -86,6 +93,37 @@ export function KidsManager({
       </div>
 
       <PinCard household={household} onSetPin={onSetPin} />
+      <BackupCard household={household} onRestore={onRestore} />
+    </div>
+  );
+}
+
+function downloadBackup(household: Household) {
+  const backup = exportBackup(household);
+  const blob = new Blob([serializeBackup(backup)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `numbersmith-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function BackupCard({ household, onRestore }: { household: Household; onRestore: (h: Household) => void }) {
+  return (
+    <div className="card">
+      <h2>Backup &amp; restore</h2>
+      <p className="small muted" style={{ marginTop: -6 }}>
+        Everyone's progress lives only in this browser — nothing is sent anywhere. Download a
+        backup file before switching devices or clearing browser data, and restore it to bring
+        every child back.
+      </p>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+        <button className="btn ghost tiny" onClick={() => downloadBackup(household)}>
+          Download backup
+        </button>
+      </div>
+      <RestoreBackup currentChildren={household.children.map((c) => c.name)} onRestore={onRestore} />
     </div>
   );
 }

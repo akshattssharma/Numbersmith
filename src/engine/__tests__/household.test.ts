@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  addChild, checkPin, emptyHousehold, loadChildSave, loadHousehold, removeChild,
+  addChild, applyBackup, checkPin, emptyHousehold, exportBackup, loadChildSave,
+  loadHousehold, parseBackup, removeChild, saveChildSave, serializeBackup,
   setPin, switchActiveChild, type Household,
 } from '../household';
 
@@ -175,5 +176,60 @@ describe('household — persistence and migration', () => {
     const save = loadChildSave('c_partial', 'Riley');
     expect(save.stars).toBe(7);
     expect(save.collection).toEqual({ starship: 3, grove: 0, vault: 0 });
+  });
+});
+
+describe('household — local export/import backup', () => {
+  it('exports every child, not just the active one', () => {
+    let h = addChild(emptyHousehold(), 'Maya', 'c00');
+    h = addChild(h, 'Sam', 'c01');
+    const backup = exportBackup(h);
+    expect(Object.keys(backup.children).sort()).toEqual([...h.children.map((c) => c.id)].sort());
+  });
+
+  it('round-trips through serialize/parse/apply back to the exact same state', () => {
+    let h = addChild(emptyHousehold(), 'Maya', 'c00');
+    h = setPin(h, '1234');
+    const mayaId = h.activeChildId!;
+    const save = loadChildSave(mayaId, 'Maya');
+    saveChildSave(mayaId, { ...save, stars: 42 });
+
+    const backup = exportBackup(h);
+    const json = serializeBackup(backup);
+
+    // Wipe storage entirely — this is the "new device" scenario the feature exists for.
+    localStorage.clear();
+    expect(loadHousehold().children).toHaveLength(0);
+
+    const parsed = parseBackup(json);
+    expect(parsed).not.toBeNull();
+    const restored = applyBackup(parsed!);
+
+    expect(restored.pin).toBe('1234');
+    expect(loadHousehold().children).toHaveLength(1);
+    expect(loadChildSave(mayaId, 'Maya').stars).toBe(42);
+  });
+
+  it('rejects a hand-edited or foreign file instead of throwing', () => {
+    expect(parseBackup('not json at all')).toBeNull();
+    expect(parseBackup('{}')).toBeNull();
+    expect(parseBackup(JSON.stringify({ version: 2, household: {}, children: {} }))).toBeNull();
+    expect(parseBackup(JSON.stringify({ version: 1, household: { children: 'nope' }, children: {} }))).toBeNull();
+  });
+
+  it('a restore replaces the current household rather than merging with it', () => {
+    const before = addChild(emptyHousehold(), 'Nia', 'c02');
+    const nia = before.activeChildId!;
+
+    const toBackUp = addChild(emptyHousehold(), 'Alex', 'c03');
+    const backup = exportBackup(toBackUp);
+
+    const restored = applyBackup(backup);
+    expect(restored.children.map((c) => c.name)).toEqual(['Alex']);
+    expect(restored.children.some((c) => c.id === nia)).toBe(false);
+    // The pre-restore child's own save is untouched on disk...
+    expect(loadChildSave(nia, 'Nia').stars).toBe(0);
+    // ...it's simply no longer listed in the household that points to children.
+    expect(loadHousehold().children.map((c) => c.name)).toEqual(['Alex']);
   });
 });

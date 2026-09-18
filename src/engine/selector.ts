@@ -1,5 +1,5 @@
 import { ALL_CONCEPTS, CONCEPTS, topoOrder } from './conceptGraph';
-import { blockingPrereq, expectedSuccess, isReady, mastery, bugConcepts, bestRepresentation } from './learnerModel';
+import { blockingPrereq, expectedSuccess, graphMastered, isReady, mastery, bugConcepts, bestRepresentation } from './learnerModel';
 import { generate, generateDiscriminating, KIND_FOR } from './problemGen';
 import type { ChallengeKind, ConceptId, LearnerModel, MisconceptionId, Problem, Representation } from './types';
 
@@ -19,6 +19,9 @@ import type { ChallengeKind, ConceptId, LearnerModel, MisconceptionId, Problem, 
  *   6. Probe a neglected surface — periodically test the same concept on the
  *      representation we have least evidence for, so the affinity picture stays
  *      honest rather than self-confirming.
+ *   7. Once every concept in the graph is mastered, there is no frontier left
+ *      to move into — the whole session becomes upkeep, rotating through
+ *      whichever concept is most overdue for review (`mastery-review`).
  */
 
 export type Reason =
@@ -32,7 +35,8 @@ export type Reason =
   | 'consolidate'
   | 'confidence-win'
   | 'quest-win'
-  | 'vary-kind';
+  | 'vary-kind'
+  | 'mastery-review';
 
 export interface Selection {
   problem: Problem;
@@ -103,20 +107,28 @@ export function selectNext(
      diagnostic item with narrative dressing on it. So the last item of every
      quest is reserved and pitched to land: a real cost in diagnostic power
      (this item was not chosen to teach or to test anything), paid for an
-     ending that actually resolves. It still outranks the emotional-rescue
-     win above only in the sense that both bypass ordinary selection — this
-     one takes the concept the child is already strongest at and asks for it
-     at a difficulty tuned for a high, not guaranteed, chance of success, so
-     it reads as earned rather than free. */
+     ending that actually resolves.
+
+     This used to derive its difficulty from expectedSuccess(mastery, ·),
+     inverted to target 88% — which sounds precise but was never actually
+     measuring the child's real odds: predictSuccess()/expectedSuccess()
+     model only the engine's *belief*, and as belief rises toward mastery
+     the inversion picks a *harder* item to hold that belief's predicted
+     success at a constant 88%. Checked against the five-children
+     simulation, that produced a 19% real success rate on this item
+     specifically, worse than confidence-win's flat-difficulty rescue
+     below. A flat, low, belief-independent difficulty is the same fix
+     confidence-win already uses, one notch above its 0.05 "panic button"
+     so a quest's win still reads as a little earned, not free. */
   if (opts.questWin) {
     const concept = strongestConcept(m);
     const rep = bestRepresentation(m);
-    const difficulty = questWinDifficulty(mastery(m, concept));
+    const difficulty = 0.1;
     return {
       problem: generate({ concept, difficulty, representation: rep, rng }),
       reason: 'quest-win',
       concept,
-      rationale: `Last item of the quest — reserved as a designed win, pitched for roughly ${(expectedSuccess(mastery(m, concept), difficulty) * 100).toFixed(0)}% success on their strongest concept. Deliberately not the most informative item this session could serve.`,
+      rationale: 'Last item of the quest — reserved as a designed win on their strongest demonstrated concept, at a deliberately low difficulty. Not the most informative item this session could serve.',
     };
   }
 
@@ -213,6 +225,28 @@ export function selectNext(
       reason: 'probe-representation',
       concept: c,
       rationale: `Only ${thinnest.n} attempt${thinnest.n === 1 ? '' : 's'} on the ${thinnest.r} surface. Spending an item there deliberately — an affinity estimate built only from the surface we already prefer just confirms itself.`,
+    };
+  } else if (graphMastered(m)) {
+    /* ------- 4'. the whole graph is mastered: maintenance, not instruction -
+       Nothing below this point (spaced-review's rng gate, consolidate,
+       frontier) is honest once every one of the 14 concepts is already at
+       mastery: frontier's own rationale text talks about "pushing forward"
+       into a concept, and pickFrontier() has nowhere left to push into — it
+       was quietly falling back to a staleness rotation and reporting it as
+       'frontier', which is the same kind of mislabeling finding 17 fixed for
+       the companion line, just in the Brain view instead of the child's ear.
+       Once here, every remaining item in the session is a deliberate review,
+       named as one, picked by the same "most overdue" logic spaced-review
+       already used, just unconditional rather than gated behind a 30% roll
+       and a decay window meant for a still-growing curriculum. */
+    const target = ALL_CONCEPTS
+      .map((c) => ({ c, age: (now - m.concepts[c].lastSeen) / DAY }))
+      .sort((a, b) => b.age - a.age)[0];
+    provisional = {
+      problem: generate({ concept: target.c, difficulty: Math.max(0.2, difficulty - 0.15), representation: m.policy.representation, rng }),
+      reason: 'mastery-review',
+      concept: target.c,
+      rationale: `Every concept in the graph is mastered — this session is upkeep, not new material. ${CONCEPTS[target.c].label} was last seen ${target.age.toFixed(1)} days ago, the longest of the fourteen, so it's due before it fades.`,
     };
   } else {
     /* ------- 4. spaced review of something going stale ------------------- */
@@ -361,8 +395,45 @@ export function totalOnRep(m: LearnerModel, r: Representation): number {
   return m.history.filter((h) => h.representation === r).length;
 }
 
+/** How many attempts count as real evidence, not a lucky guess streak —
+ *  below this, BKT's `guess` parameter alone can carry pKnow surprisingly
+ *  far on a concept the child has barely touched. */
+const STRONGEST_CONCEPT_MIN_ATTEMPTS = 5;
+
+/** True if any not-yet-resolved wrong rule — suspected, confirmed, or
+ *  mid-repair — still touches this concept. mastery() already caps such a
+ *  concept's score rather than disqualifying it, and before a bug is even
+ *  suspected its pKnow can still be riding an unearned high from a few
+ *  early guesses; for ranking "strongest", a concept under any live
+ *  suspicion is exactly the wrong evidence to build a guaranteed win on. */
+function hasUnresolvedBug(m: LearnerModel, c: ConceptId): boolean {
+  return Object.entries(m.misconceptions).some(
+    ([id, st]) => st && st.status !== 'resolved' && bugConcepts(id as MisconceptionId).includes(c),
+  );
+}
+
+/**
+ * The concept to hang a "designed win" on — confidence-win and quest-win both
+ * need one the child has *actually* demonstrated, not just one BKT is
+ * currently most confident about. Ranking by raw mastery alone picked two
+ * kinds of false champions: a concept attempted once or twice and gotten
+ * lucky on, and — worse — a concept drilled heavily *because* of a live
+ * wrong rule, whose capped-but-still-highest-available score could still
+ * win the ranking. Prefers a concept that is both attempted enough and free
+ * of any unresolved bug; falls back a tier at a time so a brand-new child,
+ * or one whose every concept is currently under some suspicion, still gets
+ * an answer rather than none.
+ */
 export function strongestConcept(m: LearnerModel): ConceptId {
-  return ALL_CONCEPTS.slice().sort((a, b) => mastery(m, b) - mastery(m, a))[0];
+  const clean = ALL_CONCEPTS.filter((c) => !hasUnresolvedBug(m, c));
+  const seasoned = clean.filter((c) => m.concepts[c].attempts >= STRONGEST_CONCEPT_MIN_ATTEMPTS);
+  // A confirmed bug is excluded outright above, but a bug only just
+  // suspected — or a concept that is simply not genuinely strong yet — can
+  // still be the least-bad option in a ranking with no absolute floor. This
+  // is that floor: the same bar isReady() uses elsewhere for "good enough".
+  const solid = seasoned.filter((c) => mastery(m, c) >= 0.6);
+  const pool = solid.length ? solid : seasoned.length ? seasoned : clean.length ? clean : ALL_CONCEPTS;
+  return pool.slice().sort((a, b) => mastery(m, b) - mastery(m, a))[0];
 }
 
 /** Concepts the child could start next — used by the parent view and the map. */
@@ -374,17 +445,3 @@ export function currentRepresentation(m: LearnerModel, sel: Selection): Represen
   return sel.problem.representation;
 }
 
-/**
- * The difficulty that gives a child of this mastery roughly `target` odds of
- * success, inverting the same logistic `expectedSuccess` uses. A quest's
- * designed win is deliberately not the absolute floor (0.05, the panic-button
- * difficulty the confidence-win rescue reaches for) — a win that took no
- * effort at all doesn't feel like one. Clamped so a child with very low
- * mastery on their own best concept still gets something winnable, and a
- * child near-mastered on it isn't handed something trivial.
- */
-export function questWinDifficulty(pKnow: number, target = 0.88): number {
-  const logit = Math.log(target / (1 - target));
-  const d = 0.5 + ((pKnow - 0.5) * 6 - logit) / 5;
-  return Math.max(0.05, Math.min(0.92, d));
-}

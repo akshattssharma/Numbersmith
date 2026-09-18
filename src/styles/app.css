@@ -342,6 +342,26 @@ button.btn.big { font-size: 16px; padding: 12px 22px; border-radius: 12px; }
 .lumie-spark.s3 { bottom: 4px; right: 10px; --dx: 14px; --dy: 16px; animation-delay: 150ms; }
 .lumie-spark.s4 { top: 40%; left: -6px; --dx: -22px; --dy: 10px; animation-delay: 220ms; }
 
+/* ---------------------------------------------------------------- landing */
+.app.landing-app { max-width: 720px; padding-top: 40px; }
+.landing { text-align: center; }
+.landing-icon { border-radius: 20px; margin-bottom: 14px; }
+.landing-title { font-size: 32px; margin: 0 0 8px; letter-spacing: -0.02em; }
+.landing-tag { color: var(--ink); font-size: 15.5px; max-width: 46ch; margin: 0 auto 14px; line-height: 1.55; }
+.landing-intro { color: var(--muted); font-size: 14px; max-width: 54ch; margin: 0 auto 30px; line-height: 1.65; }
+
+.landing-features { display: grid; gap: 14px; margin-bottom: 32px; text-align: left; }
+.landing-feature {
+  display: flex; gap: 14px; align-items: flex-start; background: var(--panel);
+  border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px;
+}
+.landing-feature-icon { font-size: 22px; line-height: 1; flex: none; margin-top: 2px; }
+.landing-feature b { display: block; font-size: 14.5px; margin-bottom: 4px; }
+.landing-feature p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+
+.landing-cta { font-size: 16px; padding: 13px 34px; }
+.landing-note { margin: 12px 0 0; }
+
 /* -------------------------------------------------------------- parent gate */
 .gatecard { max-width: 340px; margin: 40px auto; text-align: center; }
 .gatecard h2 { text-align: center; }
@@ -369,6 +389,10 @@ button.btn.big { font-size: 16px; padding: 12px 22px; border-radius: 12px; }
 
 /* ----------------------------------------------------------- constellation */
 .constellation-wrap { position: relative; }
+.constellation-complete {
+  text-align: center; font-size: 13px; font-weight: 600; color: #ffe27a;
+  margin: 0 0 6px;
+}
 .constellation-svg { width: 100%; height: auto; display: block; }
 .constellation-edge { stroke: rgba(255,255,255,0.16); stroke-width: 1.5; }
 .constellation-node { cursor: pointer; }
