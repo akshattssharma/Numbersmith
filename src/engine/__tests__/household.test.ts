@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
   addChild, applyBackup, checkPin, emptyHousehold, exportBackup, loadChildSave,
-  loadHousehold, parseBackup, removeChild, saveChildSave, serializeBackup,
+  loadHousehold, parseBackup, removeChild, resetHousehold, saveChildSave, serializeBackup,
   setPin, switchActiveChild, type Household,
 } from '../household';
 
@@ -231,5 +231,41 @@ describe('household — local export/import backup', () => {
     expect(loadChildSave(nia, 'Nia').stars).toBe(0);
     // ...it's simply no longer listed in the household that points to children.
     expect(loadHousehold().children.map((c) => c.name)).toEqual(['Alex']);
+  });
+});
+
+describe('household — signing out (handing the browser to a different family)', () => {
+  it('clears every child, the PIN, and the active id, both in memory and on disk', () => {
+    let h = addChild(emptyHousehold(), 'Maya', 'c00');
+    h = addChild(h, 'Sam', 'c01');
+    h = setPin(h, '1234');
+
+    const reset = resetHousehold(h);
+
+    expect(reset).toEqual(emptyHousehold());
+    expect(loadHousehold()).toEqual(emptyHousehold());
+  });
+
+  it('deletes each child\'s own save, not just the household record that points to them', () => {
+    let h = addChild(emptyHousehold(), 'Maya', 'c00');
+    const mayaId = h.activeChildId!;
+    saveChildSave(mayaId, { ...loadChildSave(mayaId, 'Maya'), stars: 42 });
+
+    resetHousehold(h);
+
+    // A fresh save for the same id comes back blank, not the old 42 stars --
+    // proof the save itself was removed, not just unlinked from the roster.
+    expect(loadChildSave(mayaId, 'Maya').stars).toBe(0);
+  });
+
+  it('leaves a new family free to onboard immediately after', () => {
+    let h = addChild(emptyHousehold(), 'Maya', 'c00');
+    h = setPin(h, '1234');
+    const reset = resetHousehold(h);
+
+    const nextFamily = addChild(reset, 'Riley', 'c05');
+    expect(nextFamily.children).toHaveLength(1);
+    expect(nextFamily.children[0].name).toBe('Riley');
+    expect(nextFamily.pin).toBeNull();
   });
 });

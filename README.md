@@ -56,6 +56,7 @@ diagnosis itself, deliberately; see [Safety](#safety-is-an-architecture-not-a-fi
 | **Durability** | A parent-initiated JSON backup of the whole household — no account, nothing sent anywhere — restorable from either the Kids tab or, since a fresh device has no children yet to reach that tab, the onboarding screen itself. See finding 19 | [`household.ts`](src/engine/household.ts), [`RestoreBackup.tsx`](src/components/RestoreBackup.tsx) |
 | **Mastery loop** | Once every one of the 14 concepts is mastered, the selector stops pretending there's still a frontier to push into and switches to honestly-labeled review, rotating by staleness; the parent view, constellation and Brain view all read the same `graphMastered()` rather than each guessing. See finding 20 | [`learnerModel.ts`](src/engine/learnerModel.ts), [`selector.ts`](src/engine/selector.ts) |
 | **Landing** | A one-screen introduction shown once, before onboarding, only while a device has zero children — pure copy and a single "Get started" decision, no engine import. See finding 21 | [`Landing.tsx`](src/screens/Landing.tsx) |
+| **Signing out** | No accounts means "sign out" has to mean something else: erase every child's own save and the PIN, so a different family can set up their own household on the same browser. Pushes a backup first. See finding 22 | [`household.ts`](src/engine/household.ts), [`KidsManager.tsx`](src/screens/KidsManager.tsx) |
 
 ### Two screens, not one with a debug panel bolted on
 
@@ -476,6 +477,29 @@ per session, gated on `household.children.length === 0` the same way
 `Onboarding` already was — so a household that empties its roster later
 skips straight back to `Onboarding` rather than re-explaining the product
 to someone who just used it.
+
+**22. "No accounts" cuts both ways — it also means there's no login to
+sign out of.** A device with one family's children set up on it had no
+way to hand the browser to a second family: every screen assumed
+whoever was looking at it belonged to the one household already stored.
+The honest fix isn't a login system — that would be the exact backend
+this app has refused to add through 21 prior findings — it's naming what
+"sign out" actually means here: erase this family's children and PIN
+from this browser, on purpose, so the next person gets a genuinely clean
+slate. `resetHousehold()` deletes every child's own save individually
+(not just the household record that lists them, the same distinction
+finding 19's restore logic already had to get right) and clears the PIN
+alongside them, since a new family shouldn't inherit the old one's lock.
+The Sign out card in the Kids tab pushes a backup first — reusing the
+same `downloadBackup()` the Backup card already has — before a second,
+separate confirm actually calls it, matching the weight of the action:
+this is the only control in the app that can discard more than one
+child's progress in a single click. `App.tsx`'s `signOut()` is kept
+distinct from the existing `restoreHousehold()` for one reason: it also
+flips `Landing`'s dismissed flag back to `true`, because unlike an
+ordinary empty roster (one child removed by mistake), a sign-out means
+the very next visitor to this browser may not be this family at all, and
+deserves the same introduction a first-time visitor gets.
 
 ---
 
