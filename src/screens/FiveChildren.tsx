@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CONCEPTS } from '../engine/conceptGraph';
 import { MISCONCEPTIONS } from '../engine/misconceptions';
 import { divergenceReport, runAllJourneys, type Journey } from '../engine/simulate';
@@ -58,6 +58,13 @@ export function FiveChildren() {
           <KidCard key={j.persona.id} j={j} onOpen={() => setOpen(open === j.persona.id ? null : j.persona.id)} />
         ))}
       </div>
+
+      {/* Right below the cards, not after the two long sections that used to
+          sit between them — a click here used to render its result ~1800px
+          further down with nothing to carry the eye to it, which read as the
+          button doing nothing. ScrollTarget below closes that gap the rest
+          of the way, for whichever card was actually clicked. */}
+      {open && <ScrollTarget j={journeys.find((x) => x.persona.id === open)!} />}
 
       <div className="card">
         <h2>Where the five journeys separate</h2>
@@ -159,8 +166,21 @@ export function FiveChildren() {
           first session, which is why it is here now.
         </p>
       </div>
+    </div>
+  );
+}
 
-      {open && <Detail j={journeys.find((x) => x.persona.id === open)!} />}
+/** Carries the eye to the trace the moment it opens — re-fires on `j.persona.id`
+ *  so switching from one child's trace straight to another's still scrolls,
+ *  not just the first open. */
+function ScrollTarget({ j }: { j: Journey }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [j.persona.id]);
+  return (
+    <div ref={ref}>
+      <Detail j={j} />
     </div>
   );
 }
